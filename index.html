@@ -2082,6 +2082,7 @@ input, select, textarea {
   <button class="tab" id="tab-medical" onclick="switchTab('medical',this)">🏥 Medical</button>
   <button class="tab" id="tab-calendar" onclick="switchTab('calendar',this)">📅 Calendar</button>
   <button class="tab" id="tab-comms" onclick="switchTab('comms',this)">✉️ Messages</button>
+  <button class="tab" id="tab-graduating" onclick="switchTab('graduating',this)">🎓 Graduating</button>
   <button class="tab" id="tab-pending" style="display:none;" onclick="switchTab('pending',this)">
     Requests <span class="tab-badge" id="pending-count-badge">0</span>
   </button>
@@ -2121,7 +2122,7 @@ input, select, textarea {
         <thead><tr>
           <th class="sticky-col">Student</th><th>Class</th>
           <th class="hide-mobile">Due</th><th class="hide-mobile">Paid</th>
-          <th>Owes</th><th class="hide-mobile">Pmts</th><th class="hide-mobile">Contact</th>
+          <th>Owes</th><th>Chases</th><th class="hide-mobile">Contact</th>
         </tr></thead>
         <tbody id="dash-fees-tbody"></tbody>
       </table>
@@ -2473,6 +2474,17 @@ input, select, textarea {
   <div class="week-strip" id="week-strip"></div>
 
   <div class="cal-grid" id="cal-grid"></div>
+</div>
+
+<!-- ════ GRADUATING ════ -->
+<div class="panel" id="panel-graduating">
+  <div class="wl-stats" id="grad-stats-bar">
+    <div class="wl-stat blue"><label>🧒 Boys 2026</label><span id="grad-2026-boys">—</span></div>
+    <div class="wl-stat pink"><label>🧕 Girls 2026</label><span id="grad-2026-girls">—</span></div>
+    <div class="wl-stat slate"><label>🧒 Boys 2027</label><span id="grad-2027-boys">—</span></div>
+    <div class="wl-stat rose"><label>🧕 Girls 2027</label><span id="grad-2027-girls">—</span></div>
+  </div>
+  <div id="grad-content" style="margin-top:16px;"></div>
 </div>
 
 <!-- ════ MESSAGES / TEMPLATES ════ -->
@@ -5616,7 +5628,7 @@ Jazakallah Khayran.`
         <td>
           <div class="contact-actions">
             ${waLink ? `<a href="${waLink}" target="_blank" class="btn-whatsapp">💬 WhatsApp</a>` : '<span style="font-size:10px;color:var(--ink3);">No phone</span>'}
-            <button class="btn-email-contact" onclick="copyPositionMsg('${c.Firstname} ${c.Surname}',${c._queuePos},'${c.bracket}','${name}')">📋 Copy Msg</button>
+            <button class="btn-email-contact" onclick="emailWLParent('${c.Firstname} ${c.Surname}',${c._queuePos},'${c.bracket}','${name}')">📧 Email</button>
           </div>
         </td>
       </tr>`;
@@ -5718,8 +5730,8 @@ function renderMedical() {
     return `<tr class="${isCrit?'med-critical':isMod?'med-moderate':''}" onclick="openModal(${db.indexOf(s)})">
       <td class="sticky-col">
         <strong>${cleanName(s['First Name'])} ${cleanName(s['Surname'])}</strong>
-        <div style="font-size:11px;color:var(--ink2);margin-top:2px;line-height:1.4;">${s['Allergies']}</div>
-        <div style="font-size:10px;margin-top:2px;">${getActionRequired(s['Allergies'])}</div>
+        <div style="font-size:13px;color:var(--ink2);margin-top:3px;line-height:1.5;">${s['Allergies']}</div>
+        <div style="font-size:12px;margin-top:3px;">${getActionRequired(s['Allergies'])}</div>
       </td>
       <td><span class="chip chip-${s['Class']}">${s['Class']}</span></td>
       <td>${getSeverityLabel(sev)}</td>
@@ -7469,6 +7481,228 @@ function closeHelp(e) {
     }, 500);
   };
 })();
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 5: CACHE PERSISTENCE · GRADUATION TAB · INDIVIDUAL DEBT
+// ══════════════════════════════════════════════════════════════
+
+// ── 5.1  Write cache when user navigates away ─────────────────
+window.addEventListener('pagehide', function() {
+  if (db && db.length) { try { writeDbCache(db); } catch(e) {} }
+});
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden' && db && db.length) {
+    try { writeDbCache(db); } catch(e) {}
+  }
+});
+
+// ── 5.2  switchTab: graduating ────────────────────────────────
+(function() {
+  const _p5_origST = switchTab;
+  switchTab = function(name, btn) {
+    _p5_origST(name, btn);
+    if (name === 'graduating') renderGraduating();
+  };
+})();
+
+// ── 5.3  Graduating tab renderer ─────────────────────────────
+function renderGraduating() {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const sept1This = new Date(currentYear, 8, 1);    // Sept 1 this year
+  const sept1Next = new Date(currentYear + 1, 8, 1); // Sept 1 next year
+
+  function parseDob(raw) {
+    if (!raw || raw === '' || raw === 'NaT' || raw === 'nan') return null;
+    const d = new Date(raw);
+    return (isNaN(d) || d.getFullYear() < 1990) ? null : d;
+  }
+
+  function birthday14(dob) {
+    return new Date(dob.getFullYear() + 14, dob.getMonth(), dob.getDate());
+  }
+
+  function ageLabel(dob) {
+    let y = today.getFullYear() - dob.getFullYear();
+    let m = today.getMonth() - dob.getMonth();
+    if (today.getDate() < dob.getDate()) m--;
+    if (m < 0) { y--; m += 12; }
+    return y + 'y ' + m + 'm';
+  }
+
+  function countdownLabel(bd14) {
+    if (bd14 <= today) return '✓ 14+';
+    const days = Math.floor((bd14 - today) / 86400000);
+    if (days < 31)  return days + 'd';
+    const months = Math.floor(days / 30.44);
+    if (months < 12) return months + 'm';
+    return Math.floor(months / 12) + 'y ' + (months % 12) + 'm';
+  }
+
+  const grads = { this: [], next: [] };
+  db.forEach(s => {
+    const dob = parseDob(s['DOB']);
+    if (!dob) return;
+    const bd = birthday14(dob);
+    if (bd <= sept1This) grads.this.push(s);
+    else if (bd <= sept1Next) grads.next.push(s);
+  });
+
+  grads.this.sort((a, b) => new Date(a['DOB']) - new Date(b['DOB']));
+  grads.next.sort((a, b) => new Date(a['DOB']) - new Date(b['DOB']));
+
+  function count(arr, gender) { return arr.filter(s => s['Gender'] === gender).length; }
+
+  const el = id => document.getElementById(id);
+  if (el('grad-2026-boys'))  el('grad-2026-boys').textContent  = count(grads.this, 'Male');
+  if (el('grad-2026-girls')) el('grad-2026-girls').textContent = count(grads.this, 'Female');
+  if (el('grad-2027-boys'))  el('grad-2027-boys').textContent  = count(grads.next, 'Male');
+  if (el('grad-2027-girls')) el('grad-2027-girls').textContent = count(grads.next, 'Female');
+
+  function buildTable(students) {
+    if (!students.length) return `<p style="color:var(--ink3);font-style:italic;padding:8px;">No students in this group</p>`;
+    return `<div class="tbl-wrap"><div class="tbl-scroll">
+      <table class="sticky-table" style="width:100%;">
+        <thead><tr>
+          <th class="sticky-col">Student</th>
+          <th>Class</th>
+          <th class="hide-mobile">DOB</th>
+          <th>Age</th>
+          <th>Until 14</th>
+        </tr></thead>
+        <tbody>
+          ${students.map(s => {
+            const dob  = parseDob(s['DOB']);
+            const bd   = dob ? birthday14(dob) : null;
+            const icon = s['Gender'] === 'Female' ? '🧕' : '🧒';
+            const dobFmt = dob
+              ? String(dob.getDate()).padStart(2,'0')+'/'+String(dob.getMonth()+1).padStart(2,'0')+'/'+dob.getFullYear()
+              : '—';
+            const isPast = bd && bd <= today;
+            return `<tr onclick="openModal(${db.indexOf(s)})" style="cursor:pointer;">
+              <td class="sticky-col" style="padding:10px 12px;">
+                ${icon} <strong>${cleanName(s['First Name'])} ${cleanName(s['Surname'])}</strong>
+              </td>
+              <td><span class="chip chip-${s['Class']}">${s['Class']}</span></td>
+              <td class="hide-mobile" style="font-size:var(--font-xs);color:var(--ink3);">${dobFmt}</td>
+              <td style="font-size:var(--font-xs);font-weight:600;">${dob ? ageLabel(dob) : '—'}</td>
+              <td style="font-size:var(--font-xs);font-weight:700;color:${isPast?'var(--green)':'var(--red)'};">
+                ${bd ? countdownLabel(bd) : '—'}
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div></div>`;
+  }
+
+  const content = el('grad-content');
+  if (!content) return;
+  content.innerHTML = `
+    <div style="margin-bottom:24px;">
+      <div style="font-size:var(--font-md);font-weight:700;margin-bottom:4px;">
+        🎓 Graduating July ${currentYear}
+      </div>
+      <div style="font-size:var(--font-xs);color:var(--ink3);margin-bottom:10px;">
+        Students who turn 14 by 1 Sep ${currentYear} ·
+        ${grads.this.length} total
+        (${count(grads.this,'Male')} boys · ${count(grads.this,'Female')} girls)
+      </div>
+      ${buildTable(grads.this)}
+    </div>
+    <div>
+      <div style="font-size:var(--font-md);font-weight:700;margin-bottom:4px;">
+        🎓 Graduating July ${currentYear + 1}
+      </div>
+      <div style="font-size:var(--font-xs);color:var(--ink3);margin-bottom:10px;">
+        Students who turn 14 by 1 Sep ${currentYear + 1} ·
+        ${grads.next.length} total
+        (${count(grads.next,'Male')} boys · ${count(grads.next,'Female')} girls)
+      </div>
+      ${buildTable(grads.next)}
+    </div>`;
+}
+
+// ── 5.4  Individual debt view: chase count + sort ─────────────
+function _p5_renderIndividualDebt() {
+  const tbody = document.getElementById('dash-fees-tbody');
+  if (!tbody) return;
+
+  const owing = db.map((s, i) => ({ s, i }))
+    .filter(({ s }) => computePaid(s) - (parseFloat(s['Fees Due']) || 0) < 0);
+
+  if (!owing.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--green)">✅ All fees collected!</td></tr>';
+    return;
+  }
+
+  if (typeof debtSortMode !== 'undefined' && debtSortMode === 'chase') {
+    owing.sort((a, b) => {
+      const ca = (a.s.chaseHistory || []).length;
+      const cb = (b.s.chaseHistory || []).length;
+      if (ca !== cb) return ca - cb; // least chased first
+      return (computePaid(a.s) - (parseFloat(a.s['Fees Due']) || 0)) -
+             (computePaid(b.s) - (parseFloat(b.s['Fees Due']) || 0));
+    });
+  } else {
+    owing.sort((a, b) =>
+      (computePaid(a.s) - (parseFloat(a.s['Fees Due']) || 0)) -
+      (computePaid(b.s) - (parseFloat(b.s['Fees Due']) || 0))
+    );
+  }
+
+  tbody.innerHTML = owing.map(({ s, i }) => {
+    const paid2  = computePaid(s);
+    const owed   = paid2 - (parseFloat(s['Fees Due']) || 0);
+    const hist   = s.chaseHistory || [];
+    const count  = hist.length;
+    const last   = count ? hist[hist.length - 1]?.date : null;
+    const days   = last ? Math.floor((Date.now() - new Date(last)) / 86400000) : null;
+    const dot    = count === 0 ? '⚪' : (days !== null && days <= 14 ? '🟢' : '🟡');
+    return `<tr onclick="openModal(${i})" style="cursor:pointer;">
+      <td><strong>${cleanName(s['First Name'])} ${cleanName(s['Surname'])}</strong></td>
+      <td><span class="chip chip-${s['Class']}">${s['Class']}</span></td>
+      <td class="hide-mobile">${fmt(s['Fees Due'])}</td>
+      <td class="hide-mobile">${fmt(paid2)}</td>
+      <td style="color:var(--red);font-weight:600">${fmt(Math.abs(owed))}</td>
+      <td style="text-align:center;white-space:nowrap;">${dot}&nbsp;${count}</td>
+      <td class="hide-mobile" style="font-size:var(--font-xs)">${s['Mother Phone'] || s['Father Phone'] || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Hook into renderDashboard so individual view updates with family view
+(function() {
+  const _p5_origRD = renderDashboard;
+  renderDashboard = function() {
+    _p5_origRD.apply(this, arguments);
+    try { _p5_renderIndividualDebt(); } catch(e) { console.error('_p5_renderIndividualDebt:', e); }
+  };
+})();
+
+// Hook into setDebtSort so individual sort also updates
+(function() {
+  const _p5_origSDS = setDebtSort;
+  setDebtSort = function(mode, btn) {
+    _p5_origSDS(mode, btn);
+    try { _p5_renderIndividualDebt(); } catch(e) {}
+  };
+})();
+
+// ── 5.5  Waiting list: email parent with position message ─────
+function emailWLParent(name, pos, bracket, parentName) {
+  const subject = encodeURIComponent('Waiting List Update — EEIS Al-Kauthar Madrasah');
+  const body = encodeURIComponent(
+    'Assalamu Alaikum ' + (parentName || 'Parent') + ',\n\n' +
+    'We are writing to update you regarding ' + name + '\'s position on our waiting list.\n\n' +
+    'Current Position: #' + pos + ' in the ' + bracket + ' age group.\n\n' +
+    'We will be in touch as soon as a place becomes available, in shaa Allah.\n\n' +
+    'JazakAllah Khayran,\n' +
+    'EEIS Al-Kauthar Madrasah\n' +
+    'madrasah@eeis.co.uk'
+  );
+  _openMailto('mailto:?subject=' + subject + '&body=' + body);
+}
 
 // ── Auth: improve GSI error handling ─────────────────────────
 (function() {
