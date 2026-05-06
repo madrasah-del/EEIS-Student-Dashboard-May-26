@@ -3218,27 +3218,34 @@ function enterApp() {
     return;
   }
 
-  // Has config — attempt Sheets load.
-  // Show cached data immediately if available (so user isn't staring at blank screen)
+  // Has config — show cached data first, then decide whether to re-sync
   const cachedStudents = loadDb();
   const cachedStaff    = loadStaffCache();
   const lastSync       = getLastSync();
+  const cacheAgeMins   = (lastSync && lastSync.ts) ? Math.round((Date.now() - lastSync.ts) / 60000) : Infinity;
+  const CACHE_TTL_MINS = 60; // Skip auto-sync if data was fetched within the last hour
 
   if (cachedStudents.length) {
-    // Show cached data with a clear "using cache" warning
     db = cachedStudents.map(s => migrateRecord(s));
     filtered = [...db];
     staffDb = cachedStaff.length ? cachedStaff : loadStaffDb();
     renderDashboard();
     applyFilters();
+
+    if (cacheAgeMins < CACHE_TTL_MINS) {
+      // Cache is fresh — skip Sheets fetch entirely, load instantly
+      hideCacheWarning();
+      setSyncStatus('ok', '✅ ' + db.length + ' students · synced ' + cacheAgeMins + 'm ago');
+      return; // ← no Sheets call this session
+    }
+    // Cache is stale (> 1 hour) — show warning and refresh in background
     showCacheWarning(lastSync);
   } else {
-    // No cache at all — show loading screen, nothing else
+    // No cache at all — must fetch from Sheets
     showLoadingOverlay(true);
   }
 
-  // Always attempt fresh Sheets load regardless
-  loadFromSheets();
+  loadFromSheets(); // Only runs when: no cache, OR cache is > 1 hour old
 }
 
 function showNoConnectionScreen() {
@@ -5709,10 +5716,14 @@ function renderMedical() {
     const contact = s['Mother Phone'] || s['Father Phone'] || '—';
     const contactName = s['Mother Name'] || s['Father Name'] || '—';
     return `<tr class="${isCrit?'med-critical':isMod?'med-moderate':''}" onclick="openModal(${db.indexOf(s)})">
-      <td class="sticky-col"><strong>${cleanName(s['First Name'])} ${cleanName(s['Surname'])}</strong></td>
+      <td class="sticky-col">
+        <strong>${cleanName(s['First Name'])} ${cleanName(s['Surname'])}</strong>
+        <div style="font-size:11px;color:var(--ink2);margin-top:2px;line-height:1.4;">${s['Allergies']}</div>
+        <div style="font-size:10px;margin-top:2px;">${getActionRequired(s['Allergies'])}</div>
+      </td>
       <td><span class="chip chip-${s['Class']}">${s['Class']}</span></td>
       <td>${getSeverityLabel(sev)}</td>
-      <td style="font-size:var(--font-sm);max-width:220px;">${s['Allergies']}</td>
+      <td class="hide-mobile" style="font-size:var(--font-sm);max-width:220px;">${s['Allergies']}</td>
       <td class="hide-mobile">${getActionRequired(s['Allergies'])}</td>
       <td class="hide-mobile" style="font-size:11px;">${contactName}<br><span style="color:var(--blue);">${contact}</span></td>
     </tr>`;
@@ -6959,7 +6970,9 @@ function getLastChaseNote(s) {
   const e = getLastChase(s); return e ? e.note : (s.lastResponse || '');
 }
 function getFamilyChaseCount(family) {
-  return family.students.reduce((max, {s}) => Math.max(max, (s.chaseHistory||[]).length), 0);
+  // Use representative student only — keeps count consistent with what's shown in the history panel
+  const rep = family.students[0]?.s;
+  return (rep?.chaseHistory || []).length;
 }
 
 // ── Canonical chase log push ─────────────────────────────────
@@ -7194,6 +7207,16 @@ madrasah@eeis.co.uk`;
       });
     }
 
+    function _familyIcon(family) {
+      if (family.students.length === 1) {
+        return family.students[0].s['Gender'] === 'Female' ? '🧕' : '🧒';
+      }
+      const hasGirls = family.students.some(({s}) => s['Gender'] === 'Female');
+      const hasBoys  = family.students.some(({s}) => s['Gender'] === 'Male');
+      if (hasGirls && hasBoys) return '👨‍👩‍👧';
+      return hasGirls ? '🧕' : '🧒';
+    }
+
     function buildFamilyCard(family, isPlan) {
       const totalBalance = getFamilyBalance(family);
       const chaseCount   = getFamilyChaseCount(family);
@@ -7201,12 +7224,11 @@ madrasah@eeis.co.uk`;
       const isSelected   = selectedFamilyKeys.has(family.key);
       const contact      = getFamilyContact(family);
 
-      // Chase status dot
-      const lastDate = family.students.reduce((latest, {s}) => {
-        const d = getLastChaseDate(s); return d > latest ? d : latest;
-      }, '');
-      const daysAgo = lastDate ? Math.floor((Date.now() - new Date(lastDate)) / 86400000) : null;
-      const dotClass = daysAgo === null ? 'none' : daysAgo <= 14 ? 'recent' : 'overdue';
+      // Chase status dot — use representative student (matches what history panel shows)
+      const repStudent   = family.students[0]?.s || {};
+      const lastDate     = getLastChaseDate(repStudent);
+      const daysAgo      = lastDate ? Math.floor((Date.now() - new Date(lastDate)) / 86400000) : null;
+      const dotClass     = daysAgo === null ? 'none' : daysAgo <= 14 ? 'recent' : 'overdue';
 
       const familyName  = getFamilyDisplayName(family);
       const familyTown  = family.students[0]?.s['Town'] || '';
@@ -7230,7 +7252,7 @@ madrasah@eeis.co.uk`;
           <input type="checkbox" class="dfhd-check" ${isSelected?'checked':''} onclick="event.stopPropagation();toggleFamilySelect('${family.key.replace(/'/g,"\\'")}',event)">
           <span class="chase-dot ${dotClass}" style="flex-shrink:0;"></span>
           <div class="dfhd-name">
-            ${family.students.length > 1 ? '👨‍👩‍👧' : '👤'} <strong>${familyName}</strong>
+            ${_familyIcon(family)} <strong>${familyName}</strong>
             ${familyTown ? `<span class="dfhd-town">· ${familyTown}</span>` : ''}
             ${isPlan ? '<span style="font-size:11px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:5px;">⚡ Arrangement</span>' : ''}
           </div>
@@ -7363,13 +7385,28 @@ function chaseFamilyEmail(chaseKey, familyKey) {
 
   const s0 = students[0];
   const parentName = s0['Mother Name']||s0['Father Name']||'Parent';
-  const lines = students.map(s => {
-    const paid2 = computePaid(s), owed = paid2-(parseFloat(s['Fees Due'])||0);
-    const pmts = (s.instalments||[]).map(i=>`  – ${i.date} ${fmt(i.amount)} (${i.method})`).join('\n');
-    return `${cleanName(s['First Name'])} ${cleanName(s['Surname'])} (${s['Class']}):\n  Fees due: ${fmt(s['Fees Due'])}\n  Total paid: ${fmt(paid2)}\n  Outstanding: ${fmt(Math.abs(owed))}\n${pmts ? 'Payments on record:\n'+pmts : ''}`;
-  });
-  const totalOwed = students.reduce((t,s)=>t+computePaid(s)-(parseFloat(s['Fees Due'])||0),0);
-  const body = `Assalamu Alaikum ${parentName},\n\nWe are writing regarding outstanding fees for the 2025/2026 academic year.\n\n${lines.join('\n\n')}\n\nTotal outstanding: ${fmt(Math.abs(totalOwed))}\n\nPayment options:\n• Online: https://eeis.sumupstore.com/\n• In office: Cash or card\n• Bank transfer: Please contact us for details\n\nIf you have already made payment, please provide your bank transfer reference so we can update our records.\n\nJazakAllah Khayran,\nEEIS Al-Kauthar Madrasah\nmadrasah@eeis.co.uk`;
+
+  // Build body using the fees-chase template from the Messages section
+  // so any edits there automatically update these emails too.
+  const feesChaseTemplate = (typeof templates !== 'undefined' ? templates : [])
+    .find(t => t.id === 'fees-chase' || t.category === 'fees');
+
+  let body;
+  if (feesChaseTemplate && students.length === 1) {
+    // Single student — resolve template vars directly
+    const vars = getTemplateVars(s0);
+    body = resolveTemplate(feesChaseTemplate.body, vars)
+      .replace(/\*([^*\n]+)\*/g, '$1'); // strip WhatsApp bold for email
+  } else {
+    // Multiple students in family — build per-student breakdown using template header/footer
+    const lines = students.map(s => {
+      const paid2 = computePaid(s), owed = paid2-(parseFloat(s['Fees Due'])||0);
+      const pmts = (s.instalments||[]).map(i=>`  – ${i.date} ${fmt(i.amount)} (${i.method})`).join('\n');
+      return `${cleanName(s['First Name'])} ${cleanName(s['Surname'])} (${s['Class']}):\n  Fees due: ${fmt(s['Fees Due'])}\n  Total paid: ${fmt(paid2)}\n  Outstanding: ${fmt(Math.abs(owed))}${pmts ? '\n  Payments on record:\n'+pmts : ''}`;
+    });
+    const totalOwed = students.reduce((t,s)=>t+computePaid(s)-(parseFloat(s['Fees Due'])||0),0);
+    body = `Assalamu Alaikum ${parentName},\n\nWe are writing regarding outstanding fees for the 2025/2026 academic year.\n\n${lines.join('\n\n')}\n\nTotal outstanding: ${fmt(Math.abs(totalOwed))}\n\nPayment options:\n• Online: https://eeis.sumupstore.com/\n• In office: Cash or card\n• Bank transfer: Please contact us for details\n\nIf you have already made payment, please provide your bank transfer reference so we can update our records.\n\nJazakAllah Khayran,\nEEIS Al-Kauthar Madrasah\nmadrasah@eeis.co.uk`;
+  }
 
   const subject = encodeURIComponent('Fee Reminder — EEIS Al-Kauthar Madrasah');
   // TO = first address, CC = second (both parents see it was received by both)
