@@ -36,18 +36,18 @@
   /* mobile-first spacing */
   --gap:       12px;
   --pad:       16px;
-  --font-xs:   11px;
-  --font-sm:   13px;
-  --font-md:   15px;
-  --font-lg:   18px;
-  --font-xl:   24px;
-  --font-hero: 32px;
+  --font-xs:   13px;
+  --font-sm:   15px;
+  --font-md:   17px;
+  --font-lg:   21px;
+  --font-xl:   27px;
+  --font-hero: 34px;
 }
 @media(min-width:768px){
   :root{
     --gap:16px; --pad:24px;
-    --font-xs:12px; --font-sm:13px; --font-md:14px;
-    --font-lg:17px; --font-xl:22px; --font-hero:36px;
+    --font-xs:12px; --font-sm:14px; --font-md:15px;
+    --font-lg:18px; --font-xl:23px; --font-hero:38px;
   }
 }
 
@@ -506,6 +506,14 @@ td{padding:10px 13px;vertical-align:middle;}
 .info-field label{display:block;font-size:var(--font-xs);text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);font-weight:600;margin-bottom:2px;}
 .info-field span{font-size:var(--font-md);}
 .full{grid-column:1/-1;}
+/* tappable contact links inside info fields */
+.tap-phone{background:none;border:none;padding:0;color:var(--blue);font-size:var(--font-md);font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:600;text-align:left;min-height:44px;display:inline-flex;align-items:center;gap:5px;}
+.tap-phone:active{opacity:.7;}
+.tap-email{color:var(--blue);font-size:var(--font-md);font-weight:500;word-break:break-all;}
+/* comm log summary on info tab */
+.comm-log-summary{background:var(--blue-lt);border:1px solid #c3d4f0;border-radius:8px;padding:10px 14px;margin-top:12px;}
+.comm-log-summary-title{font-size:var(--font-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--blue);margin-bottom:6px;}
+.comm-log-summary-row{font-size:var(--font-sm);color:var(--ink2);display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;}
 .allergy-box{background:var(--red-lt);border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:var(--font-sm);color:var(--red);}
 .comment-box{background:var(--warm);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:var(--font-sm);color:var(--ink2);line-height:1.5;}
 
@@ -2105,7 +2113,7 @@ input, select, textarea {
         <div class="form-field"><label>Fees Due (£)</label><input id="a-due" type="number" placeholder="260"></div>
         <div class="form-field"><label>Amount Paid (£)</label><input id="a-paid" type="number" placeholder="0"></div>
         <div class="form-field"><label>Method</label>
-          <select id="a-method"><option value="">Select</option><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Online Store</option><option>Direct Debit</option><option>Waived</option></select></div>
+          <select id="a-method"><option value="">Select</option><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Standing Order</option><option>Online</option><option>Waived</option></select></div>
         <div class="form-field"><label>Payment Date</label><input id="a-paydate" type="date"></div>
         <div class="form-field"><label>Reference / Receipt</label><input id="a-ref" type="text" placeholder="e.g. Online Store #150"></div>
         <div class="form-field"><label>Fee Notes</label><input id="a-feenote" type="text" placeholder="e.g. paying monthly"></div>
@@ -2521,6 +2529,7 @@ input, select, textarea {
       <div class="sec-hd">Allergies & Medical</div>
       <div id="mi-allergy-wrap" style="margin-bottom:12px;"></div>
       <div id="mi-comments-wrap"></div>
+      <div id="mi-comm-log-wrap"></div>
       <div id="mi-payment-link" style="margin-top:10px;padding:10px 14px;background:var(--green-lt);border:1px solid #86efac;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
         <div style="font-size:12px;font-weight:600;color:var(--green);">💳 Online Payment Portal</div>
         <a href="https://eeis.sumupstore.com/" target="_blank" style="font-size:12px;color:var(--blue);font-weight:700;text-decoration:none;padding:5px 12px;background:#fff;border-radius:6px;border:1px solid var(--blue-lt);">eeis.sumupstore.com →</a>
@@ -2561,7 +2570,7 @@ input, select, textarea {
             <label>Method <span class="req">*</span></label>
             <select id="edit-inst-method" style="padding:9px 11px;border:1.5px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;-webkit-appearance:none;width:100%;background:#fff;">
               <option>Cash</option><option>Card</option><option>Bank Transfer</option>
-              <option>Online Store</option><option>Direct Debit</option><option>Cheque</option><option>Other</option>
+              <option>Standing Order</option><option>Online</option><option>Waived</option>
             </select>
           </div>
           <div class="form-field">
@@ -2621,7 +2630,7 @@ input, select, textarea {
             <div><label>Date <span style="color:var(--red)">*</span></label><input type="date" id="inst-date" style="font-size:15px;"></div>
             <div><label>Amount (£) <span style="color:var(--red)">*</span></label><input type="number" id="inst-amt" placeholder="130" step="0.01" style="font-size:15px;"></div>
             <div><label>Method <span style="color:var(--red)">*</span></label>
-              <select id="inst-method" style="font-size:15px;"><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Online Store</option><option>Direct Debit</option><option>Cheque</option><option>Other</option></select>
+              <select id="inst-method" style="font-size:15px;"><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Standing Order</option><option>Online</option><option>Waived</option></select>
             </div>
             <div><label>Receipt Book Page <span style="color:var(--red)">*</span></label><input type="text" id="inst-receipt" placeholder="e.g. 47" style="font-size:15px;"></div>
             <div><label>Reference</label><input type="text" id="inst-ref" placeholder="e.g. #152 / TAAAXXX" style="font-size:15px;"></div>
@@ -3848,6 +3857,19 @@ function renderPag(){
 }
 function goPage(p){const t=Math.ceil(filtered.length/PG);if(p<1||p>t)return;curPage=p;renderTable();}
 
+// ── Contact helper renderers ──────────────────────────────────
+function _contactPhoneHTML(name, phone) {
+  if (!phone || !phone.trim()) return '—';
+  const sn = (name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const sp = phone.trim().replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return `<button class="tap-phone" onclick="openContactPopup('${sn}','${sp}')">📞 ${phone}</button>`;
+}
+function _contactEmailHTML(email) {
+  if (!email || !email.trim()) return '—';
+  const e = email.trim();
+  return `<a class="tap-email" href="mailto:${e}">${e}</a>`;
+}
+
 // ══════════════════════════════════════════════════════════════
 // MODAL
 // ══════════════════════════════════════════════════════════════
@@ -3859,11 +3881,11 @@ function openModal(idx){
   document.getElementById('m-name').textContent=name;
   document.getElementById('m-meta').innerHTML=`<span class="chip chip-${s['Class']}">${s['Class']}</span> · ${s['Gender']||'—'} · Age ${s['Age']?Math.floor(parseFloat(s['Age'])):'—'} · ${s['DOB']||'—'} ${feeChip}`;
   document.getElementById('mi-mname').textContent=s['Mother Name']||'—';
-  document.getElementById('mi-mphone').textContent=s['Mother Phone']||'—';
-  document.getElementById('mi-memail').textContent=s['Mother Email']||'—';
+  document.getElementById('mi-mphone').innerHTML=_contactPhoneHTML(s['Mother Name']||'Mother',s['Mother Phone']);
+  document.getElementById('mi-memail').innerHTML=_contactEmailHTML(s['Mother Email']);
   document.getElementById('mi-fname2').textContent=s['Father Name']||'—';
-  document.getElementById('mi-fphone').textContent=s['Father Phone']||'—';
-  document.getElementById('mi-femail').textContent=s['Father Email']||'—';
+  document.getElementById('mi-fphone').innerHTML=_contactPhoneHTML(s['Father Name']||'Father',s['Father Phone']);
+  document.getElementById('mi-femail').innerHTML=_contactEmailHTML(s['Father Email']);
   document.getElementById('mi-addr').textContent=[s['Road'],s['Town'],s['County'],s['Postcode']].filter(Boolean).join(', ')||'—';
   const hasA=!!(s['Allergies']||'').trim();
   document.getElementById('mi-allergy-wrap').innerHTML=hasA?`<div class="allergy-box">⚠️ <strong>Allergy/Medical:</strong> ${s['Allergies']}</div>`:'<span style="color:var(--ink3);font-size:var(--font-sm)">None recorded</span>';
@@ -3905,7 +3927,7 @@ function renderFeeTab(s){
         <td class="hide-mobile" style="color:var(--ink3);font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${refNotes}</td>
         <td>
           ${canEdit()?`<div style="display:flex;gap:3px;">
-            <button class="del-inst" onclick="openInstEdit(${i})" title="Edit payment" style="background:var(--gold-lt);color:var(--gold-dk);">✏</button>
+            <button class="del-inst" onclick="openInstEdit(${i})" title="Edit payment" style="background:var(--gold-lt);color:var(--gold-dk);font-size:11px;padding:4px 8px;">✏ Edit</button>
             <button class="del-inst" onclick="deleteInstalment(${i})" title="Delete payment">✕</button>
           </div>`:''}
         </td>
@@ -5239,11 +5261,25 @@ openModal = function(idx) {
         `<span>Sept: £${split.sept}</span><span>Jan: £${split.jan}</span>`;
     }
   }
-  // Load comm log
+  // Load comm log (editable fields in Fees tab)
   const chaseDate = document.getElementById('last-chased-date');
   const chaseResp = document.getElementById('last-response-text');
   if (chaseDate) chaseDate.value = s.lastChased || '';
   if (chaseResp) chaseResp.value = s.lastResponse || '';
+  // Read-only comm log summary on Info tab
+  const commWrap = document.getElementById('mi-comm-log-wrap');
+  if (commWrap) {
+    if (s.lastChased || s.lastResponse) {
+      commWrap.innerHTML = `<div class="comm-log-summary">
+        <div class="comm-log-summary-title">📞 Fee Chase Log</div>
+        ${s.lastChased ? `<div class="comm-log-summary-row"><strong>Last chased:</strong> ${s.lastChased}</div>` : ''}
+        ${s.lastResponse ? `<div class="comm-log-summary-row"><strong>Response:</strong> ${s.lastResponse}</div>` : ''}
+        <div class="comm-log-summary-row" style="margin-top:4px;font-size:11px;color:var(--ink3);">Full log in Fees & Payments tab</div>
+      </div>`;
+    } else {
+      commWrap.innerHTML = '';
+    }
+  }
   // Hide edit controls for viewers
   const planRow = document.getElementById('plan-toggle-row');
   if (planRow && currentUser?.role === 'Viewer') planRow.style.opacity = '.5';
