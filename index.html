@@ -3726,15 +3726,16 @@ function parseUsersRows(raw) {
 // ── Serialise for Sheets ──
 function studentsToRows() {
   const headers = ['First Name','Surname','DOB','Age','Gender','Class','Fees Due','Fees Paid','Fees Outstanding','Mother Name','Mother Phone','Mother Email','Father Name','Father Phone','Father Email','Road','Town','County','Postcode','Allergies','Comments','Payment History'];
-  const rows = db.map(s => {
-    const instPaid = (s.instalments||[]).reduce((t,i) => t+(parseFloat(i.amount)||0), 0);
+  const rows = db.map((s, dbIdx) => {
+    if (!s) { console.warn('studentsToRows: null student at index', dbIdx); return null; }
+    const insts = Array.isArray(s.instalments) ? s.instalments.filter(Boolean) : [];
+    const instPaid = insts.reduce((t,i) => t+(parseFloat(i.amount)||0), 0);
     // CRITICAL: Never write 0 back to Fees Paid if the sheet had a value
-    // Use instalment sum if we have instalments, otherwise preserve original Fees Paid
     const paid = instPaid > 0 ? instPaid : (parseFloat(s['Fees Paid'])||0);
     const owed = paid - (parseFloat(s['Fees Due'])||0);
-    const hist = (s.instalments||[]).map(i=>`${i.date}: £${i.amount} (${i.method}${i.ref?' – '+i.ref:''})`).join(' | ');
+    const hist = insts.map(i=>`${i.date||''}: £${i.amount||0} (${i.method||''}${i.ref?' – '+i.ref:''})`).join(' | ');
     return [cleanName(s['First Name']),cleanName(s['Surname']),s['DOB']||'',s['Age']||'',s['Gender']||'',s['Class']||'',s['Fees Due']||'',paid.toFixed(2),owed.toFixed(2),s['Mother Name']||'',s['Mother Phone']||'',s['Mother Email']||'',s['Father Name']||'',s['Father Phone']||'',s['Father Email']||'',s['Road']||'',s['Town']||'',s['County']||'',s['Postcode']||'',s['Allergies']||'',s['Comments']||'',hist];
-  });
+  }).filter(Boolean);
   return [headers, ...rows];
 }
 
@@ -3804,9 +3805,22 @@ async function loadFromSheets() {
     }
 
     // ── Success: replace everything with fresh Sheets data ──
+    // Preserve chaseHistory from the previous db cache (it's not stored in Sheets)
+    const _chaseCache = {};
+    db.forEach(s => {
+      if (s && s.chaseHistory && s.chaseHistory.length) {
+        const k = (cleanName(s['First Name']) + '|' + cleanName(s['Surname'])).toLowerCase();
+        _chaseCache[k] = s.chaseHistory;
+      }
+    });
     db = loaded;
+    // Restore chaseHistory into freshly-loaded students
+    db.forEach(s => {
+      const k = (cleanName(s['First Name']) + '|' + cleanName(s['Surname'])).toLowerCase();
+      if (_chaseCache[k]) s.chaseHistory = _chaseCache[k];
+    });
     filtered = [...db];
-    writeDbCache(db); // Cache AFTER successful load
+    writeDbCache(db); // Cache AFTER successful load (now includes restored chaseHistory)
 
     // Staff
     const loadedStaff = parseStaffRows(staffRaw);
@@ -5441,7 +5455,7 @@ openModal = function(idx) {
 // ══════════════════════════════════════════════════════════════
 const _sprint4_origRenderDash = renderDashboard;
 renderDashboard = function() {
-  try { _sprint4_origRenderDash(); } catch(e) { console.error('renderDashboard core failed:', e); }
+  _sprint4_origRenderDash(); // no try-catch — let stats errors surface in console
   try { renderDebtFamilyView(); } catch(e) { console.error('renderDebtFamilyView failed:', e); }
 };
 
@@ -6383,10 +6397,10 @@ handleOrientation();
 // Scrollable inner panels are whitelisted; root-level overscroll is blocked
 document.addEventListener('touchmove', function(e) {
   const scrollable = e.target.closest(
-    '.modal-body, .chase-history-list, .debt-family-body, ' +
-    '.inst-table, .staff-grid, .wl-list, .panel'
+    '.modal-body, .chase-history-list, .debt-family-body-v2, ' +
+    '.inst-table, .staff-grid, .wl-list, .panel, .nav'
   );
-  if (scrollable) return; // allow scroll inside these containers
+  if (scrollable) return; // allow scroll inside these containers (and nav horizontal scroll)
   if (window.scrollY === 0) e.preventDefault(); // block only when at top
 }, { passive: false });
 
@@ -6972,15 +6986,19 @@ function renderChaseHistory(s, containerId, opts) {
   if (!el) return;
   const history = (s.chaseHistory || []).slice().reverse();
   const limited = opts.limit ? history.slice(0, opts.limit) : history;
+  const totalLen = (s.chaseHistory || []).length;
   const methodIcon = { WhatsApp:'💬', Call:'📞', Email:'📧', 'In-person':'🤝', Unknown:'📌' };
+  // Key for identifying student in delete handler
+  const sKey = encodeURIComponent((s['First Name']||'') + '|' + (s['Surname']||''));
   if (!limited.length) {
     el.innerHTML = '<div style="color:var(--ink3);font-size:var(--font-xs);padding:6px 0;">No contact logged yet.</div>';
     return;
   }
   el.innerHTML = `<div class="sec-hd" style="margin-top:8px;">📋 Chase History</div>
   <div class="chase-history-list">
-    ${limited.map(entry => `
-      <div class="chase-history-entry">
+    ${limited.map((entry, j) => {
+      const realIdx = totalLen - 1 - j; // index in original (non-reversed) chaseHistory array
+      return `<div class="chase-history-entry">
         <div class="che-icon">${methodIcon[entry.method] || '📌'}</div>
         <div style="flex:1;">
           <div class="che-meta">
@@ -6991,11 +7009,35 @@ function renderChaseHistory(s, containerId, opts) {
           </div>
           ${entry.note ? `<div class="che-note">${entry.note}</div>` : ''}
         </div>
-      </div>`).join('')}
+        ${!opts.readOnly ? `<button onclick="deleteChaseEntry('${sKey}',${realIdx},'${containerId}')" title="Delete entry" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:13px;padding:2px 6px;border-radius:4px;flex-shrink:0;line-height:1;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--ink3)'">✕</button>` : ''}
+      </div>`;
+    }).join('')}
     ${opts.limit && history.length > opts.limit
       ? `<div style="font-size:11px;color:var(--ink3);text-align:center;padding:4px;">+${history.length - opts.limit} more — see Fees tab</div>`
       : ''}
   </div>`;
+}
+
+// ── Delete a single chase history entry ─────────────────────
+function deleteChaseEntry(sKeyEncoded, realIdx, containerId) {
+  if (!confirm('Delete this chase log entry?')) return;
+  const sKey = decodeURIComponent(sKeyEncoded);
+  const sepIdx = sKey.indexOf('|');
+  const fn = sKey.slice(0, sepIdx);
+  const sn = sKey.slice(sepIdx + 1);
+  const s = db.find(st => (st['First Name']||'') === fn && (st['Surname']||'') === sn);
+  if (!s || !Array.isArray(s.chaseHistory)) { showToast('Student not found', 'red'); return; }
+  s.chaseHistory.splice(realIdx, 1);
+  // Sync legacy scalar fields
+  if (s.chaseHistory.length) {
+    s.lastChased   = s.chaseHistory[s.chaseHistory.length-1].date;
+    s.lastResponse = s.chaseHistory[s.chaseHistory.length-1].note;
+  } else {
+    s.lastChased = ''; s.lastResponse = '';
+  }
+  renderChaseHistory(s, containerId, {});
+  writeDbCache(db); // persist deletion to cache immediately
+  showToast('Entry deleted', 'green');
 }
 
 // ── Debt sort ────────────────────────────────────────────────
