@@ -52,7 +52,7 @@
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-html{font-size:16px;-webkit-text-size-adjust:100%;}
+html{font-size:16px;-webkit-text-size-adjust:100%;overscroll-behavior:none;}
 body{
   font-family:'DM Sans',sans-serif;
   background:var(--cream);
@@ -60,6 +60,7 @@ body{
   min-height:100vh;
   min-height:100dvh;
   overflow-x:hidden;
+  overscroll-behavior-y:contain;
 }
 
 /* ══════════════════════════════════════════════
@@ -1859,6 +1860,82 @@ input, select, textarea {
   background: var(--gold-lt) !important;
   transform: translateY(-1px);
 }
+
+/* ══════════════════════════════════════════════
+   PHASE 4 STYLES
+══════════════════════════════════════════════ */
+
+/* Debt sort buttons */
+.debt-sort-btn {
+  padding:5px 12px;background:var(--warm);color:var(--ink3);
+  border:1.5px solid var(--border);border-radius:20px;
+  font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;
+}
+.debt-sort-btn.active { background:var(--ink);color:#fff;border-color:var(--ink); }
+
+/* Mass chase bar */
+#mass-chase-bar {
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--blue-lt);border:1.5px solid var(--blue);border-radius:8px;
+  padding:8px 14px;margin-bottom:10px;font-size:var(--font-sm);
+}
+#mass-chase-count { font-weight:600;color:var(--blue);flex:1; }
+
+/* Compact family debt card */
+.debt-family-card-v2 {
+  background:#fff;border:1px solid var(--border);border-radius:8px;
+  margin-bottom:6px;overflow:hidden;transition:box-shadow .15s;
+}
+.debt-family-card-v2.has-debt { border-color:#fca5a5; }
+.debt-family-card-v2.has-plan { border-color:var(--gold);background:var(--gold-lt); }
+.debt-family-hd-v2 {
+  display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;
+  user-select:none;-webkit-user-select:none;
+}
+.debt-family-hd-v2:hover { background:var(--warm); }
+.dfhd-check { flex-shrink:0;width:18px;height:18px;cursor:pointer; }
+.dfhd-name { flex:1;font-weight:600;font-size:var(--font-sm);color:var(--ink);display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.dfhd-town { font-size:var(--font-xs);color:var(--ink3);font-weight:400; }
+.dfhd-amount { font-weight:700;font-size:var(--font-md);color:var(--red);flex-shrink:0;min-width:56px;text-align:right; }
+.dfhd-chases { font-size:10px;font-weight:700;background:var(--purple-lt);color:var(--purple);padding:2px 6px;border-radius:10px;flex-shrink:0; }
+.dfhd-expand { font-size:12px;color:var(--ink3);flex-shrink:0;transition:transform .2s; }
+.dfhd-expand.open { transform:rotate(180deg); }
+.debt-family-body-v2 {
+  display:none;border-top:1px solid var(--border);
+  padding:12px 12px 14px;background:var(--cream);
+}
+/* Plan section header */
+.plan-section-header {
+  display:flex;align-items:center;gap:8px;margin:12px 0 6px;
+  font-size:var(--font-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--gold-dk);
+}
+
+/* Chase action row in expanded card */
+.chase-action-row { display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border); }
+.chase-action-row .btn { font-size:var(--font-xs);padding:7px 12px;min-height:36px; }
+
+/* Chase history list (Phase 4) */
+.chase-history-list { display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto;margin-top:6px; }
+.chase-history-entry { display:flex;gap:8px;align-items:flex-start;padding:7px 9px;background:#fff;border:1px solid var(--border);border-radius:7px;font-size:var(--font-xs); }
+.che-icon { font-size:15px;flex-shrink:0; }
+.che-meta { display:flex;flex-wrap:wrap;gap:5px;color:var(--ink3);margin-bottom:2px; }
+.che-date { font-weight:700;color:var(--ink2); }
+.che-method { background:var(--blue-lt);color:var(--blue);padding:1px 5px;border-radius:4px;font-weight:600; }
+.che-note { color:var(--ink);line-height:1.4; }
+
+/* Chase reminder buttons (Comms panel) */
+.chase-reminder-btn { padding:5px 12px;background:var(--warm);color:var(--ink2);border:1.5px solid var(--border);border-radius:20px;font-family:'DM Sans',sans-serif;font-size:var(--font-xs);font-weight:600;cursor:pointer;transition:all .15s; }
+.chase-reminder-btn.active { background:var(--gold);color:#fff;border-color:var(--gold); }
+
+/* Tappable contact links (Phase 3 — ensure button style correct) */
+.tap-phone { background:none;border:none;padding:0;color:var(--blue);font-size:var(--font-md);font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:600;text-align:left;min-height:44px;display:inline-flex;align-items:center;gap:5px; }
+.tap-email { color:var(--blue);font-size:var(--font-md);font-weight:500;word-break:break-all; }
+
+/* Comm log summary on info tab */
+.comm-log-summary { background:var(--blue-lt);border:1px solid #c3d4f0;border-radius:8px;padding:10px 14px;margin-top:12px; }
+.comm-log-summary-title { font-size:var(--font-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--blue);margin-bottom:6px; }
+.comm-log-summary-row { font-size:var(--font-sm);color:var(--ink2);display:flex;align-items:baseline;gap:6px;flex-wrap:wrap; }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -1971,7 +2048,8 @@ input, select, textarea {
   <div class="app-logo"><span>✦</span><span class="logo-full">EEIS Al-Kauthar</span><span class="logo-short">EEIS</span></div>
   <div class="header-right">
     <span class="sync-pill sync-none" id="sync-status">⚪ Not synced</span>
-    <button class="hdr-btn" onclick="loadFromSheets()" title="Reload from Google Sheets" style="min-height:36px;min-width:36px;">↻</button>
+    <button class="hdr-btn" onclick="loadFromSheets()" title="Reload data from Google Sheets" style="min-height:36px;min-width:36px;">↻</button>
+    <button class="hdr-btn" onclick="openHelp()" title="Help & User Guide" style="min-height:36px;min-width:36px;font-weight:700;">?</button>
     <!-- user avatar -->
     <div class="user-avatar" id="user-avatar" onclick="toggleUserMenu()">
       <span id="avatar-initials">?</span>
@@ -2022,11 +2100,20 @@ input, select, textarea {
   </div>
   <div style="font-family:'Cormorant Garamond',serif;font-size:var(--font-lg);font-weight:600;color:var(--ink2);margin-bottom:10px;">Class Breakdown</div>
   <div class="class-grid-enhanced" id="class-grid"></div>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:var(--font-lg);font-weight:600;color:var(--ink2);">⚠️ Outstanding Fees — Family View</div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost btn-sm" id="debt-view-toggle" onclick="toggleDebtView()" style="font-size:11px;">👨‍👩‍👧 Group by Family</button>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:var(--font-lg);font-weight:600;color:var(--ink2);">⚠️ Outstanding Fees</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-ghost btn-sm" id="debt-view-toggle" onclick="toggleDebtView()" style="font-size:11px;">👤 Individual</button>
+      <span style="font-size:11px;color:var(--ink3);">Sort:</span>
+      <button class="debt-sort-btn active" id="dsort-debt" onclick="setDebtSort('debt',this)">↓ Highest debt</button>
+      <button class="debt-sort-btn" id="dsort-chase" onclick="setDebtSort('chase',this)">↓ Least contacted</button>
     </div>
+  </div>
+  <!-- Mass chase floating bar (shown when families selected) -->
+  <div id="mass-chase-bar" style="display:none;">
+    <span id="mass-chase-count">0 families selected</span>
+    <button class="btn btn-sm" onclick="sendMassChaseEmail()" style="background:var(--blue);color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:var(--font-xs);font-weight:600;cursor:pointer;">📧 Mass Email (BCC)</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearFamilySelection()">✕ Clear</button>
   </div>
   <div id="dash-fees-individual" class="tbl-wrap" style="display:none;">
     <div class="tbl-scroll">
@@ -2034,14 +2121,13 @@ input, select, textarea {
         <thead><tr>
           <th class="sticky-col">Student</th><th>Class</th>
           <th class="hide-mobile">Due</th><th class="hide-mobile">Paid</th>
-          <th>Owes</th><th class="hide-mobile">Plan</th><th class="hide-mobile">Contact</th>
+          <th>Owes</th><th class="hide-mobile">Pmts</th><th class="hide-mobile">Contact</th>
         </tr></thead>
         <tbody id="dash-fees-tbody"></tbody>
       </table>
     </div>
   </div>
-  <div id="dash-fees-family" style="display:block;" id="dash-fees-family-view">
-    <!-- Family grouped cards rendered by JS -->
+  <div id="dash-fees-family" style="display:block;">
     <div id="dash-fees-family-content"></div>
   </div>
 </div>
@@ -2745,6 +2831,61 @@ input, select, textarea {
 
 </div><!-- /main-app -->
 
+<!-- PHASE 4: HELP OVERLAY -->
+<div id="help-overlay" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(15,17,23,.7);align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;" onclick="closeHelp(event)">
+  <div style="background:#fff;border-radius:16px;max-width:560px;width:100%;margin:0 auto;padding:clamp(20px,5vw,36px);position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:700;">Help & User Guide</div>
+      <button onclick="closeHelp()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);min-width:36px;min-height:36px;">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="background:var(--blue-lt);border:1px solid #c3d4f0;border-radius:10px;padding:14px 16px;">
+        <div style="font-weight:700;color:var(--blue);margin-bottom:6px;">👁 Viewer</div>
+        <ul style="font-size:var(--font-sm);color:var(--ink2);padding-left:18px;line-height:1.7;">
+          <li>Can view all students, staff, medical, and calendar data</li>
+          <li>Cannot edit, add, or delete any records</li>
+          <li>Cannot approve or deny access requests</li>
+          <li>Cannot export data or change settings</li>
+        </ul>
+      </div>
+      <div style="background:var(--green-lt);border:1px solid #86efac;border-radius:10px;padding:14px 16px;">
+        <div style="font-weight:700;color:var(--green);margin-bottom:6px;">✏️ Editor</div>
+        <ul style="font-size:var(--font-sm);color:var(--ink2);padding-left:18px;line-height:1.7;">
+          <li>Can add, edit and update student records</li>
+          <li>Can record and edit fee payments</li>
+          <li>Can log communication and send WhatsApp / email chases</li>
+          <li>Can update staff attendance and DBS records</li>
+          <li>Cannot approve or deny access requests for new users</li>
+        </ul>
+      </div>
+      <div style="background:var(--gold-lt);border:1px solid var(--gold);border-radius:10px;padding:14px 16px;">
+        <div style="font-weight:700;color:var(--gold-dk);margin-bottom:6px;">🔑 Super Admin</div>
+        <ul style="font-size:var(--font-sm);color:var(--ink2);padding-left:18px;line-height:1.7;">
+          <li>Full access to everything an Editor can do</li>
+          <li>Can approve or deny access requests for new staff</li>
+          <li>Can set user roles (Viewer / Editor / Super Admin)</li>
+          <li>Can edit staff records including pay rates</li>
+          <li>Can export all data to CSV</li>
+          <li>Can access Google Sheets setup and configuration</li>
+        </ul>
+      </div>
+      <div style="background:var(--warm);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
+        <div style="font-weight:700;color:var(--ink);margin-bottom:6px;">🔐 Requesting Access</div>
+        <ol style="font-size:var(--font-sm);color:var(--ink2);padding-left:18px;line-height:1.7;">
+          <li>Go to <strong>madrasah.eeis.store</strong> and sign in with your school Google account or email</li>
+          <li>If your account is not recognised, you will be shown a request form</li>
+          <li>Fill in your name and select the role you need</li>
+          <li>A Super Admin will be notified and will approve or deny your request</li>
+          <li>Once approved, sign in again and you will have access</li>
+        </ol>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;color:var(--ink3);text-align:center;">
+      EEIS Al-Kauthar Dashboard · Phase 4 · May 2026 · <a href="https://github.com/madrasah-del/EEIS-Student-Dashboard-May-26" target="_blank" style="color:var(--blue);">GitHub</a>
+    </div>
+  </div>
+</div>
+
 <!-- LOADING OVERLAY -->
 <div id="loading-overlay">
   <div class="loading-card">
@@ -3378,6 +3519,16 @@ function migrateRecord(s) {
     const p = parseFloat(s['Fees Paid']);
     if (!isNaN(p) && p > 0) {
       s.instalments.push({ date: s['Date of payment']||'', amount: p, method: s['Method of Payment']||'', ref:'', notes: s['Fee Notes']||'' });
+    }
+  }
+  // PHASE 4: backfill chase history array from legacy scalar fields
+  if (!s.chaseHistory) {
+    s.chaseHistory = [];
+    if (s.lastChased || s.lastResponse) {
+      s.chaseHistory.push({
+        date: s.lastChased || '', note: s.lastResponse || '',
+        method: 'Unknown', sentBy: 'Imported', template: ''
+      });
     }
   }
   return s;
@@ -5290,8 +5441,8 @@ openModal = function(idx) {
 // ══════════════════════════════════════════════════════════════
 const _sprint4_origRenderDash = renderDashboard;
 renderDashboard = function() {
-  _sprint4_origRenderDash();
-  renderDebtFamilyView();
+  try { _sprint4_origRenderDash(); } catch(e) { console.error('renderDashboard core failed:', e); }
+  try { renderDebtFamilyView(); } catch(e) { console.error('renderDebtFamilyView failed:', e); }
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -6228,6 +6379,17 @@ window.addEventListener('orientationchange', () => setTimeout(handleOrientation,
 window.addEventListener('resize', handleOrientation);
 handleOrientation();
 
+// ── Prevent iOS Safari pull-to-refresh ──────────────────────
+// Scrollable inner panels are whitelisted; root-level overscroll is blocked
+document.addEventListener('touchmove', function(e) {
+  const scrollable = e.target.closest(
+    '.modal-body, .chase-history-list, .debt-family-body, ' +
+    '.inst-table, .staff-grid, .wl-list, .panel'
+  );
+  if (scrollable) return; // allow scroll inside these containers
+  if (window.scrollY === 0) e.preventDefault(); // block only when at top
+}, { passive: false });
+
 // ══════════════════════════════════════════════════════════════
 // SPRINT 6: GETTEMPLATEVARS — add PAYMENT_URL
 // ══════════════════════════════════════════════════════════════
@@ -6761,5 +6923,463 @@ enterApp = function() {
   </div>
 </div>
 
+<script>
+// ══════════════════════════════════════════════════════════════
+// PHASE 4: CHASE HISTORY · COMPACT DEBT CARDS · 3 TEMPLATES · HELP
+// NOTE: s.chaseHistory is localStorage/cache only (not a Sheets column).
+// Data survives refresh but not full cache clear or Sheets reimport.
+// ══════════════════════════════════════════════════════════════
+
+// ── Module-level state ───────────────────────────────────────
+let selectedFamilyKeys = new Set();
+let debtSortMode = 'debt'; // 'debt' | 'chase'
+let chaseReminderTplId = 'fees-chase';
+
+// ── Chase history helpers ────────────────────────────────────
+function getLastChase(s) {
+  const h = s.chaseHistory;
+  return h && h.length ? h[h.length - 1] : null;
+}
+function getLastChaseDate(s) {
+  const e = getLastChase(s); return e ? e.date : (s.lastChased || '');
+}
+function getLastChaseNote(s) {
+  const e = getLastChase(s); return e ? e.note : (s.lastResponse || '');
+}
+function getFamilyChaseCount(family) {
+  return family.students.reduce((max, {s}) => Math.max(max, (s.chaseHistory||[]).length), 0);
+}
+
+// ── Canonical chase log push ─────────────────────────────────
+function pushChaseEntry(s, { date, note, method, template }) {
+  if (!s.chaseHistory) s.chaseHistory = [];
+  s.chaseHistory.push({
+    date: date || new Date().toISOString().slice(0,10),
+    note: note || '',
+    method: method || 'WhatsApp',
+    sentBy: currentUser?.name || currentUser?.email || 'Staff',
+    template: template || ''
+  });
+  // Keep legacy scalar fields in sync
+  s.lastChased   = s.chaseHistory[s.chaseHistory.length-1].date;
+  s.lastResponse = s.chaseHistory[s.chaseHistory.length-1].note;
+}
+
+// ── Chase history renderer ───────────────────────────────────
+function renderChaseHistory(s, containerId, opts) {
+  opts = opts || {};
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const history = (s.chaseHistory || []).slice().reverse();
+  const limited = opts.limit ? history.slice(0, opts.limit) : history;
+  const methodIcon = { WhatsApp:'💬', Call:'📞', Email:'📧', 'In-person':'🤝', Unknown:'📌' };
+  if (!limited.length) {
+    el.innerHTML = '<div style="color:var(--ink3);font-size:var(--font-xs);padding:6px 0;">No contact logged yet.</div>';
+    return;
+  }
+  el.innerHTML = `<div class="sec-hd" style="margin-top:8px;">📋 Chase History</div>
+  <div class="chase-history-list">
+    ${limited.map(entry => `
+      <div class="chase-history-entry">
+        <div class="che-icon">${methodIcon[entry.method] || '📌'}</div>
+        <div style="flex:1;">
+          <div class="che-meta">
+            <span class="che-date">${entry.date}</span>
+            <span class="che-method">${entry.method}</span>
+            ${entry.sentBy ? `<span style="color:var(--ink3);">· ${entry.sentBy}</span>` : ''}
+            ${entry.template ? `<span style="color:var(--gold-dk);font-style:italic;">· ${entry.template}</span>` : ''}
+          </div>
+          ${entry.note ? `<div class="che-note">${entry.note}</div>` : ''}
+        </div>
+      </div>`).join('')}
+    ${opts.limit && history.length > opts.limit
+      ? `<div style="font-size:11px;color:var(--ink3);text-align:center;padding:4px;">+${history.length - opts.limit} more — see Fees tab</div>`
+      : ''}
+  </div>`;
+}
+
+// ── Debt sort ────────────────────────────────────────────────
+function setDebtSort(mode, btn) {
+  debtSortMode = mode;
+  document.querySelectorAll('.debt-sort-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  try { renderDebtFamilyView(); } catch(e) { console.error(e); }
+}
+
+// ── Multi-select helpers ─────────────────────────────────────
+function toggleFamilySelect(key, el) {
+  el.stopPropagation && el.stopPropagation();
+  if (selectedFamilyKeys.has(key)) selectedFamilyKeys.delete(key);
+  else selectedFamilyKeys.add(key);
+  updateMassChaseBar();
+}
+function clearFamilySelection() {
+  selectedFamilyKeys.clear();
+  updateMassChaseBar();
+  try { renderDebtFamilyView(); } catch(e) {}
+}
+function updateMassChaseBar() {
+  const bar = document.getElementById('mass-chase-bar');
+  const cnt = document.getElementById('mass-chase-count');
+  if (!bar) return;
+  const n = selectedFamilyKeys.size;
+  bar.style.display = n > 0 ? 'flex' : 'none';
+  if (cnt) cnt.textContent = n + (n===1 ? ' family selected' : ' families selected');
+}
+
+// ── Mass chase email ─────────────────────────────────────────
+function sendMassChaseEmail() {
+  if (!selectedFamilyKeys.size) return;
+  const families = groupByFamily(db.filter(s => computePaid(s) - (parseFloat(s['Fees Due'])||0) < 0));
+  const bccEmails = [];
+  const today = new Date().toISOString().slice(0,10);
+
+  families.forEach(family => {
+    if (!selectedFamilyKeys.has(family.key)) return;
+    const contact = getFamilyContact(family);
+    // Collect Mother + Father emails for each student in family
+    family.students.forEach(({s}) => {
+      if (s['Mother Email'] && s['Mother Email'].includes('@')) bccEmails.push(s['Mother Email'].trim());
+      if (s['Father Email'] && s['Father Email'].includes('@')) bccEmails.push(s['Father Email'].trim());
+    });
+    // Auto-log chase for each student in family
+    family.students.forEach(({s}) => {
+      pushChaseEntry(s, { date: today, note: 'Mass email sent', method: 'Email', template: 'Mass Chase' });
+    });
+  });
+
+  const uniqueBcc = [...new Set(bccEmails)].join(',');
+  const subject = encodeURIComponent('Fee Reminder — EEIS Al-Kauthar Madrasah');
+  const body = encodeURIComponent(
+`Assalamu Alaikum,
+
+We hope this message finds you and your family well.
+
+We are writing to remind you that fees for the 2025/2026 academic year are outstanding. Please arrange payment at your earliest convenience.
+
+You can pay online securely here:
+https://eeis.sumupstore.com/
+
+Alternatively, you can pay at the office via cash or card.
+
+If you have already made payment or believe there is an error in your records, please contact us with evidence of the bank transfer so we can verify it.
+
+If you have any questions or require a payment plan, please do not hesitate to get in touch.
+
+JazakAllah Khayran,
+EEIS Al-Kauthar Madrasah
+info@eeis.co.uk`);
+
+  window.location.href = `mailto:?bcc=${uniqueBcc}&subject=${subject}&body=${body}`;
+
+  saveDb().then(() => {
+    showToast('✅ Email opened — chase logged for ' + selectedFamilyKeys.size + ' families', 'green');
+    clearFamilySelection();
+    renderDebtFamilyView();
+  }).catch(e => showToast('⚠️ Email opened but not saved: ' + e.message, 'red'));
+}
+
+// ── Rewritten renderDebtFamilyView ───────────────────────────
+(function() {
+  const _orig = renderDebtFamilyView;
+  renderDebtFamilyView = function() {
+    const owing = db.filter(s => computePaid(s) - (parseFloat(s['Fees Due'])||0) < 0);
+    const el = document.getElementById('dash-fees-family-content');
+    if (!el) return;
+    if (!owing.length) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--green);font-weight:600;">✅ No outstanding fees!</div>';
+      return;
+    }
+
+    const families = groupByFamily(owing);
+
+    // Split: payment-plan families vs regular
+    const regularFamilies = [];
+    const planFamilies    = [];
+    families.forEach(family => {
+      const hasPlan = family.students.some(({s}) => s.paymentPlan);
+      (hasPlan ? planFamilies : regularFamilies).push(family);
+    });
+
+    // Sort regular families
+    if (debtSortMode === 'debt') {
+      regularFamilies.sort((a, b) => getFamilyBalance(a) - getFamilyBalance(b)); // most negative first
+    } else {
+      regularFamilies.sort((a, b) => {
+        const ca = getFamilyChaseCount(a), cb = getFamilyChaseCount(b);
+        if (ca !== cb) return ca - cb; // fewest chased first
+        return getFamilyBalance(a) - getFamilyBalance(b); // tiebreak by largest debt
+      });
+    }
+
+    function buildFamilyCard(family, isPlan) {
+      const totalBalance = getFamilyBalance(family);
+      const chaseCount   = getFamilyChaseCount(family);
+      const chaseKey     = family.key.replace(/[^a-z0-9]/gi,'_');
+      const isSelected   = selectedFamilyKeys.has(family.key);
+      const contact      = getFamilyContact(family);
+
+      // Chase status dot
+      const lastDate = family.students.reduce((latest, {s}) => {
+        const d = getLastChaseDate(s); return d > latest ? d : latest;
+      }, '');
+      const daysAgo = lastDate ? Math.floor((Date.now() - new Date(lastDate)) / 86400000) : null;
+      const dotClass = daysAgo === null ? 'none' : daysAgo <= 14 ? 'recent' : 'overdue';
+
+      const familyName  = getFamilyDisplayName(family);
+      const familyTown  = family.students[0]?.s['Town'] || '';
+
+      // Student sub-table rows
+      const studentRows = family.students.map(({s}) => {
+        const paid2 = computePaid(s), owed = paid2 - (parseFloat(s['Fees Due'])||0);
+        return `<tr onclick="openModal(${db.indexOf(s)})" style="cursor:pointer;">
+          <td style="padding:6px 8px;font-size:var(--font-sm);">
+            ${cleanName(s['First Name'])} ${cleanName(s['Surname'])}
+            ${s.paymentPlan ? '<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:5px;margin-left:4px;">⚡ Plan</span>' : ''}
+          </td>
+          <td style="padding:6px 8px;"><span class="chip chip-${s['Class']}">${s['Class']}</span></td>
+          <td style="padding:6px 8px;font-weight:700;color:var(--red);font-size:var(--font-sm);">${owed<0?fmt(Math.abs(owed)):'✓'}</td>
+          <td style="padding:6px 8px;font-size:11px;color:var(--ink3);">${(s.instalments||[]).length} pmts</td>
+        </tr>`;
+      }).join('');
+
+      return `<div class="debt-family-card-v2 ${totalBalance<0?'has-debt':''} ${isPlan?'has-plan':''}" id="dfcard-${chaseKey}">
+        <div class="debt-family-hd-v2" onclick="toggleFamilyCardV2('${chaseKey}')">
+          <input type="checkbox" class="dfhd-check" ${isSelected?'checked':''} onclick="event.stopPropagation();toggleFamilySelect('${family.key.replace(/'/g,"\\'")}',event)">
+          <span class="chase-dot ${dotClass}" style="flex-shrink:0;"></span>
+          <div class="dfhd-name">
+            ${family.students.length > 1 ? '👨‍👩‍👧' : '👤'} <strong>${familyName}</strong>
+            ${familyTown ? `<span class="dfhd-town">· ${familyTown}</span>` : ''}
+            ${isPlan ? '<span style="font-size:11px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:5px;">⚡ Arrangement</span>' : ''}
+          </div>
+          ${chaseCount > 0 ? `<span class="dfhd-chases">${chaseCount}×</span>` : ''}
+          <div class="dfhd-amount">${totalBalance<0 ? '−' : '+'}${fmt(Math.abs(totalBalance))}</div>
+          <span class="dfhd-expand" id="dfexp-${chaseKey}">▼</span>
+        </div>
+        <div class="debt-family-body-v2" id="dfbody-${chaseKey}">
+          <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
+            <thead><tr style="font-size:10px;text-transform:uppercase;color:var(--ink3);">
+              <th style="padding:4px 8px;text-align:left;">Student</th>
+              <th style="padding:4px 8px;text-align:left;">Class</th>
+              <th style="padding:4px 8px;text-align:left;">Owes</th>
+              <th style="padding:4px 8px;text-align:left;">Pmts</th>
+            </tr></thead>
+            <tbody>${studentRows}</tbody>
+          </table>
+          <div id="dfhist-${chaseKey}" style="margin-bottom:8px;"></div>
+          ${isPlan ? `<div style="background:#fef3c7;border:1px solid var(--gold);border-radius:6px;padding:8px 10px;font-size:var(--font-xs);color:#92400e;margin-bottom:8px;">⚡ This family has a payment arrangement. Only chase if there is a specific concern.</div>` : ''}
+          <div class="chase-action-row">
+            ${contact.phone ? `<button class="btn btn-ghost btn-sm" onclick="chaseFamilyWhatsApp('${chaseKey}','${family.key.replace(/'/g,"\\'")}');event.stopPropagation()">💬 WhatsApp</button>` : ''}
+            ${contact.email ? `<button class="btn btn-ghost btn-sm" onclick="chaseFamilyEmail('${chaseKey}','${family.key.replace(/'/g,"\\'")}');event.stopPropagation()">📧 Email</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="logFamilyContact('${chaseKey}','${family.key.replace(/'/g,"\\'")}');event.stopPropagation()">📋 Log Contact</button>
+          </div>
+          <div id="dflog-${chaseKey}" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">
+              <div><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);">Date</label>
+                <input type="date" id="dfdate-${chaseKey}" value="${new Date().toISOString().slice(0,10)}" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;-webkit-appearance:none;"></div>
+              <div><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);">Method</label>
+                <select id="dfmethod-${chaseKey}" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;-webkit-appearance:none;background:#fff;">
+                  <option value="WhatsApp">💬 WhatsApp</option><option value="Call">📞 Call</option><option value="Email">📧 Email</option><option value="In-person">🤝 In-person</option>
+                </select></div>
+              <div style="grid-column:1/-1;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);">Notes</label>
+                <input type="text" id="dfnote-${chaseKey}" placeholder="e.g. Mum said will pay Friday" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;-webkit-appearance:none;"></div>
+            </div>
+            <button class="btn btn-gold btn-sm" onclick="saveFamilyChaseLog('${chaseKey}','${family.key.replace(/'/g,"\\'")}');event.stopPropagation()" style="width:100%;min-height:38px;">💾 Save Log</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    let html = regularFamilies.map(f => buildFamilyCard(f, false)).join('');
+
+    if (planFamilies.length) {
+      html += `<div class="plan-section-header"><span>⚡ Payment Arrangements (${planFamilies.length})</span></div>`;
+      html += planFamilies.map(f => buildFamilyCard(f, true)).join('');
+    }
+
+    el.innerHTML = html;
+
+    // Render chase history for any open (expanded) cards
+    [...regularFamilies, ...planFamilies].forEach(family => {
+      const chaseKey = family.key.replace(/[^a-z0-9]/gi,'_');
+      const body = document.getElementById('dfbody-' + chaseKey);
+      if (body && body.style.display !== 'none') {
+        const rep = family.students[0]?.s;
+        if (rep) renderChaseHistory(rep, 'dfhist-' + chaseKey);
+      }
+    });
+  };
+})();
+
+// ── Family card toggle ────────────────────────────────────────
+function toggleFamilyCardV2(chaseKey) {
+  const body = document.getElementById('dfbody-' + chaseKey);
+  const exp  = document.getElementById('dfexp-' + chaseKey);
+  const hist = document.getElementById('dfhist-' + chaseKey);
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (exp) exp.classList.toggle('open', !isOpen);
+  // Lazy-render chase history on open
+  if (!isOpen && hist) {
+    // Find the representative student for this family key
+    const decodedKey = chaseKey; // keys are alphanumeric after replace
+    const s = db.find(s2 => s2.chaseHistory !== undefined &&
+      getFamilyKey(s2).replace(/[^a-z0-9]/gi,'_') === chaseKey);
+    if (s) renderChaseHistory(s, 'dfhist-' + chaseKey);
+  }
+}
+
+// ── Family chase actions ──────────────────────────────────────
+function _getFamilyStudents(familyKey) {
+  return db.filter(s => getFamilyKey(s) === familyKey);
+}
+
+function chaseFamilyWhatsApp(chaseKey, familyKey) {
+  const students = _getFamilyStudents(familyKey);
+  if (!students.length) return;
+  const s0 = students[0];
+  const hasPlan = students.some(s => s.paymentPlan);
+  if (hasPlan) {
+    if (!confirm('⚡ This family has a payment arrangement.\n\nAre you sure you want to chase them?')) return;
+    if (!confirm('Please confirm again — this family has agreed a special payment plan. Only proceed if there is a specific concern.')) return;
+  }
+  const phone = (s0['Mother Phone']||s0['Father Phone']||'').replace(/[\s\-\(\)]/g,'').replace(/^\+44/,'44').replace(/^0/,'44');
+  if (!phone) { showToast('No phone number found for this family', 'red'); return; }
+
+  // Build a personalised message
+  const parentName = s0['Mother Name']||s0['Father Name']||'Parent';
+  const lines = students.map(s => {
+    const owed = computePaid(s) - (parseFloat(s['Fees Due'])||0);
+    return `• ${cleanName(s['First Name'])} ${cleanName(s['Surname'])} (${s['Class']}): owes ${fmt(Math.abs(owed))}`;
+  });
+  const totalOwed = fmt(Math.abs(students.reduce((t,s)=>t+computePaid(s)-(parseFloat(s['Fees Due'])||0),0)));
+  const msg = `Assalamu Alaikum ${parentName},\n\nWe are writing regarding outstanding fees for your child/children:\n\n${lines.join('\n')}\n\nTotal outstanding: *${totalOwed}*\n\nPlease pay online at https://eeis.sumupstore.com/ or contact us to arrange payment.\n\nJazakAllah Khayran,\nEEIS Al-Kauthar Madrasah`;
+
+  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+
+  const today = new Date().toISOString().slice(0,10);
+  students.forEach(s => pushChaseEntry(s, { date: today, note: 'WhatsApp sent', method: 'WhatsApp', template: 'Individual Chase' }));
+  saveDb().then(() => { showToast('✅ WhatsApp opened — chase logged', 'green'); renderDebtFamilyView(); }).catch(()=>{});
+}
+
+function chaseFamilyEmail(chaseKey, familyKey) {
+  const students = _getFamilyStudents(familyKey);
+  if (!students.length) return;
+  const hasPlan = students.some(s => s.paymentPlan);
+  if (hasPlan) {
+    if (!confirm('⚡ This family has a payment arrangement.\n\nAre you sure you want to chase them?')) return;
+    if (!confirm('Please confirm again — this family has agreed a special payment plan. Only proceed if there is a specific concern.')) return;
+  }
+  const emails = [];
+  students.forEach(s => {
+    if (s['Mother Email']?.includes('@')) emails.push(s['Mother Email'].trim());
+    if (s['Father Email']?.includes('@')) emails.push(s['Father Email'].trim());
+  });
+  const uniqueEmails = [...new Set(emails)];
+  if (!uniqueEmails.length) { showToast('No email address found for this family', 'red'); return; }
+
+  const s0 = students[0];
+  const parentName = s0['Mother Name']||s0['Father Name']||'Parent';
+  const lines = students.map(s => {
+    const paid2 = computePaid(s), owed = paid2-(parseFloat(s['Fees Due'])||0);
+    const pmts = (s.instalments||[]).map(i=>`  – ${i.date} ${fmt(i.amount)} (${i.method})`).join('\n');
+    return `${cleanName(s['First Name'])} ${cleanName(s['Surname'])} (${s['Class']}):\n  Fees due: ${fmt(s['Fees Due'])}\n  Total paid: ${fmt(paid2)}\n  Outstanding: ${fmt(Math.abs(owed))}\n${pmts ? 'Payments on record:\n'+pmts : ''}`;
+  });
+  const totalOwed = students.reduce((t,s)=>t+computePaid(s)-(parseFloat(s['Fees Due'])||0),0);
+  const body = `Assalamu Alaikum ${parentName},\n\nWe are writing regarding outstanding fees for the 2025/2026 academic year.\n\n${lines.join('\n\n')}\n\nTotal outstanding: ${fmt(Math.abs(totalOwed))}\n\nPayment options:\n• Online: https://eeis.sumupstore.com/\n• In office: Cash or card\n• Bank transfer: Please contact us for details\n\nIf you have already made payment, please provide your bank transfer reference so we can update our records.\n\nIf you would like to discuss a payment plan, please do not hesitate to contact us.\n\nJazakAllah Khayran,\nEEIS Al-Kauthar Madrasah\ninfo@eeis.co.uk`;
+
+  const subject = encodeURIComponent('Fee Reminder — EEIS Al-Kauthar Madrasah');
+  window.location.href = `mailto:${uniqueEmails.join(',')}?subject=${subject}&body=${encodeURIComponent(body.replace(/\n/g,'\r\n'))}`;
+
+  const today = new Date().toISOString().slice(0,10);
+  students.forEach(s => pushChaseEntry(s, { date: today, note: 'Email sent (individual chase)', method: 'Email', template: 'Individual Chase Email' }));
+  saveDb().then(() => { showToast('✅ Email opened — chase logged', 'green'); renderDebtFamilyView(); }).catch(()=>{});
+}
+
+function logFamilyContact(chaseKey, familyKey) {
+  const logDiv = document.getElementById('dflog-' + chaseKey);
+  if (logDiv) logDiv.style.display = logDiv.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveFamilyChaseLog(chaseKey, familyKey) {
+  const date   = document.getElementById('dfdate-'   + chaseKey)?.value || '';
+  const method = document.getElementById('dfmethod-' + chaseKey)?.value || 'WhatsApp';
+  const note   = document.getElementById('dfnote-'   + chaseKey)?.value.trim() || '';
+  if (!date && !note) { showToast('Enter a date or note first', 'red'); return; }
+
+  const students = _getFamilyStudents(familyKey);
+  students.forEach(s => pushChaseEntry(s, { date, note, method, template: '' }));
+
+  // Also update legacy COMM_LOG_KEY
+  const logs = loadCommLogs();
+  logs[familyKey] = { lastChased: date, lastResponse: note };
+  saveCommLogs(logs);
+
+  saveDb()
+    .then(() => { showToast('✅ Contact logged', 'green'); renderDebtFamilyView(); })
+    .catch(e => showToast('❌ Not saved: ' + e.message, 'red'));
+}
+
+// ── Individual debt view ──────────────────────────────────────
+// renderDashboard() already sorts dash-fees-tbody by largest debt.
+// Chase count column will be added in next sprint.
+
+// ── Help overlay ─────────────────────────────────────────────
+function openHelp() {
+  const overlay = document.getElementById('help-overlay');
+  if (overlay) { overlay.style.display = 'flex'; }
+}
+function closeHelp(e) {
+  if (e && e.target !== document.getElementById('help-overlay')) return;
+  const overlay = document.getElementById('help-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// ── Auth: ensure pending badge visible on login ───────────────
+(function() {
+  const _origEnter = enterApp;
+  enterApp = function() {
+    _origEnter.apply(this, arguments);
+    // Ensure pending badge is rendered for Super Admins on every login
+    setTimeout(() => {
+      try { renderPendingBadge(); } catch(e) {}
+    }, 500);
+  };
+})();
+
+// ── Auth: improve GSI error handling ─────────────────────────
+(function() {
+  const _origInitGSI = initGoogleSignIn;
+  initGoogleSignIn = function() {
+    try {
+      _origInitGSI();
+    } catch(e) {
+      console.warn('GSI init failed:', e);
+    }
+    // Add error callback if GSI loaded
+    try {
+      if (window.google?.accounts?.id) {
+        google.accounts.id.cancel();
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredential,
+          auto_select: false,
+          error_callback: function(error) {
+            console.warn('GSI error callback:', error);
+            const type = error?.type || '';
+            if (type.includes('popup') || type.includes('suppressed')) {
+              showToast('Google sign-in was blocked. Please use the Email tab instead.', 'red');
+            } else if (type.includes('invalid_client') || type.includes('origin')) {
+              showToast('Google sign-in is not configured for this URL. Use Email login instead.', 'red');
+            }
+          }
+        });
+      }
+    } catch(e) { console.warn('GSI error callback setup failed:', e); }
+  };
+})();
+
+</script>
 </body>
 </html>
