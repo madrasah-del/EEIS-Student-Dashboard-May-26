@@ -2484,7 +2484,12 @@ input, select, textarea {
     <div class="wl-stat slate"><label>🧒 Boys 2027</label><span id="grad-2027-boys">—</span></div>
     <div class="wl-stat rose"><label>🧕 Girls 2027</label><span id="grad-2027-girls">—</span></div>
   </div>
-  <div id="grad-content" style="margin-top:16px;"></div>
+  <div style="display:flex;gap:8px;margin:12px 0 0;">
+    <button class="btn btn-ghost btn-sm grad-gender-btn active" onclick="setGradGender('all',this)">👨‍👩‍👧 All</button>
+    <button class="btn btn-ghost btn-sm grad-gender-btn" onclick="setGradGender('male',this)">🧒 Boys only</button>
+    <button class="btn btn-ghost btn-sm grad-gender-btn" onclick="setGradGender('female',this)">🧕 Girls only</button>
+  </div>
+  <div id="grad-content" style="margin-top:12px;"></div>
 </div>
 
 <!-- ════ MESSAGES / TEMPLATES ════ -->
@@ -4063,7 +4068,9 @@ function openModal(idx){
   const paid2=computePaid(s),owed=paid2-(parseFloat(s['Fees Due'])||0);
   const feeChip=owed<0?`<span class="chip chip-owe">Owes ${fmt(Math.abs(owed))}</span>`:owed>0?`<span class="chip chip-over">Overpaid ${fmt(owed)}</span>`:`<span class="chip chip-ok">Fully Paid</span>`;
   document.getElementById('m-name').textContent=name;
-  document.getElementById('m-meta').innerHTML=`<span class="chip chip-${s['Class']}">${s['Class']}</span> · ${s['Gender']||'—'} · Age ${s['Age']?Math.floor(parseFloat(s['Age'])):'—'} · ${s['DOB']||'—'} ${feeChip}`;
+  const _startDur = (function(raw){if(!raw)return'';const st=new Date(raw);if(isNaN(st))return'';const n=new Date();let y=n.getFullYear()-st.getFullYear(),m=n.getMonth()-st.getMonth();if(n.getDate()<st.getDate())m--;if(m<0){y--;m+=12;}if(y===0&&m===0)return'< 1 month';if(y===0)return m+'m';if(m===0)return y+'y';return y+'y '+m+'m';})(s['Start Date']);
+  const _durChip = _startDur ? '<span style="display:inline-block;margin-left:8px;font-size:11px;color:var(--ink3);background:var(--bg2);padding:2px 7px;border-radius:10px;">📅 '+_startDur+' with us</span>' : '';
+  document.getElementById('m-meta').innerHTML=`<span class="chip chip-${s['Class']}">${s['Class']}</span> · ${s['Gender']||'—'} · Age ${s['Age']?Math.floor(parseFloat(s['Age'])):'—'} · ${s['DOB']||'—'} ${feeChip}${_durChip}`;
   document.getElementById('mi-mname').textContent=s['Mother Name']||'—';
   document.getElementById('mi-mphone').innerHTML=_contactPhoneHTML(s['Mother Name']||'Mother',s['Mother Phone']);
   document.getElementById('mi-memail').innerHTML=_contactEmailHTML(s['Mother Email']);
@@ -7486,6 +7493,55 @@ function closeHelp(e) {
 // PHASE 5: CACHE PERSISTENCE · GRADUATION TAB · INDIVIDUAL DEBT
 // ══════════════════════════════════════════════════════════════
 
+// ── 5.0  Stat snapshot — persist rendered values across reopens ─
+// init() runs before sprint overrides so the initial render uses
+// original functions.  We snapshot DOM values after every render
+// and restore them instantly on script load, so the user always
+// sees the last-known numbers even before db is ready.
+const _STAT_SNAP_KEY = 'eeis_stats_snap_v1';
+
+function _saveStatSnap() {
+  try {
+    const snap = {};
+    ['d-total','d-boys','d-boys-pct','d-girls','d-girls-pct',
+     'd-paid','d-paid-pct','d-owed','d-owed-count'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.textContent && el.textContent !== '—') snap[id] = el.textContent;
+    });
+    const grid = document.getElementById('class-grid');
+    if (grid && grid.innerHTML.trim()) snap['_class_grid'] = grid.innerHTML;
+    localStorage.setItem(_STAT_SNAP_KEY, JSON.stringify(snap));
+  } catch(e) {}
+}
+
+function _restoreStatSnap() {
+  try {
+    const snap = JSON.parse(localStorage.getItem(_STAT_SNAP_KEY) || 'null');
+    if (!snap) return;
+    Object.keys(snap).forEach(id => {
+      if (id === '_class_grid') {
+        const el = document.getElementById('class-grid');
+        if (el && !el.children.length) el.innerHTML = snap[id];
+      } else {
+        const el = document.getElementById(id);
+        if (el && (!el.textContent.trim() || el.textContent === '—')) el.textContent = snap[id];
+      }
+    });
+  } catch(e) {}
+}
+
+// Restore snapshot immediately so user sees stats before db loads
+_restoreStatSnap();
+
+// Hook into renderDashboard to save snap after every successful render
+(function() {
+  const _snapOrig = renderDashboard;
+  renderDashboard = function() {
+    _snapOrig.apply(this, arguments);
+    setTimeout(_saveStatSnap, 150);
+  };
+})();
+
 // ── 5.1  Write cache when user navigates away ─────────────────
 window.addEventListener('pagehide', function() {
   if (db && db.length) { try { writeDbCache(db); } catch(e) {} }
@@ -7506,11 +7562,20 @@ document.addEventListener('visibilitychange', function() {
 })();
 
 // ── 5.3  Graduating tab renderer ─────────────────────────────
+let gradGenderFilter = 'all'; // 'all' | 'male' | 'female'
+
+function setGradGender(mode, btn) {
+  gradGenderFilter = mode;
+  document.querySelectorAll('.grad-gender-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderGraduating();
+}
+
 function renderGraduating() {
   const today = new Date();
   const currentYear = today.getFullYear();
-  const sept1This = new Date(currentYear, 8, 1);    // Sept 1 this year
-  const sept1Next = new Date(currentYear + 1, 8, 1); // Sept 1 next year
+  const sept1This = new Date(currentYear, 8, 1);
+  const sept1Next = new Date(currentYear + 1, 8, 1);
 
   function parseDob(raw) {
     if (!raw || raw === '' || raw === 'NaT' || raw === 'nan') return null;
@@ -7527,7 +7592,7 @@ function renderGraduating() {
     let m = today.getMonth() - dob.getMonth();
     if (today.getDate() < dob.getDate()) m--;
     if (m < 0) { y--; m += 12; }
-    return y + 'y ' + m + 'm';
+    return y + 'y ' + ((m + 12) % 12) + 'm';
   }
 
   function countdownLabel(bd14) {
@@ -7539,6 +7604,21 @@ function renderGraduating() {
     return Math.floor(months / 12) + 'y ' + (months % 12) + 'm';
   }
 
+  function studyingLabel(startRaw) {
+    if (!startRaw) return '—';
+    const start = new Date(startRaw);
+    if (isNaN(start)) return '—';
+    let y = today.getFullYear() - start.getFullYear();
+    let m = today.getMonth() - start.getMonth();
+    if (today.getDate() < start.getDate()) m--;
+    if (m < 0) { y--; m += 12; }
+    if (y === 0 && m === 0) return '< 1 month';
+    if (y === 0) return m + ' month' + (m !== 1 ? 's' : '');
+    if (m === 0) return y + ' year' + (y !== 1 ? 's' : '');
+    return y + 'y ' + m + 'm';
+  }
+
+  // Collect graduating students
   const grads = { this: [], next: [] };
   db.forEach(s => {
     const dob = parseDob(s['DOB']);
@@ -7548,11 +7628,15 @@ function renderGraduating() {
     else if (bd <= sept1Next) grads.next.push(s);
   });
 
-  grads.this.sort((a, b) => new Date(a['DOB']) - new Date(b['DOB']));
-  grads.next.sort((a, b) => new Date(a['DOB']) - new Date(b['DOB']));
+  function applyFilter(arr) {
+    if (gradGenderFilter === 'male')   return arr.filter(s => s['Gender'] === 'Male');
+    if (gradGenderFilter === 'female') return arr.filter(s => s['Gender'] === 'Female');
+    return arr;
+  }
 
   function count(arr, gender) { return arr.filter(s => s['Gender'] === gender).length; }
 
+  // Update stat counters (always full totals, ignoring gender filter)
   const el = id => document.getElementById(id);
   if (el('grad-2026-boys'))  el('grad-2026-boys').textContent  = count(grads.this, 'Male');
   if (el('grad-2026-girls')) el('grad-2026-girls').textContent = count(grads.this, 'Female');
@@ -7561,6 +7645,47 @@ function renderGraduating() {
 
   function buildTable(students) {
     if (!students.length) return `<p style="color:var(--ink3);font-style:italic;padding:8px;">No students in this group</p>`;
+
+    // Group: boys first (sorted DOB asc), then girls (sorted DOB asc)
+    const boys  = students.filter(s => s['Gender'] === 'Male')
+                          .sort((a,b) => new Date(a['DOB']) - new Date(b['DOB']));
+    const girls = students.filter(s => s['Gender'] === 'Female')
+                          .sort((a,b) => new Date(a['DOB']) - new Date(b['DOB']));
+    const ordered = [...boys, ...girls];
+
+    function row(s) {
+      const dob    = parseDob(s['DOB']);
+      const bd     = dob ? birthday14(dob) : null;
+      const icon   = s['Gender'] === 'Female' ? '🧕' : '🧒';
+      const dobFmt = dob
+        ? String(dob.getDate()).padStart(2,'0')+'/'+String(dob.getMonth()+1).padStart(2,'0')+'/'+dob.getFullYear()
+        : '—';
+      const isPast  = bd && bd <= today;
+      const dur     = studyingLabel(s['Start Date']);
+      return `<tr onclick="openModal(${db.indexOf(s)})" style="cursor:pointer;">
+        <td class="sticky-col" style="padding:10px 12px;">
+          ${icon} <strong>${cleanName(s['First Name'])} ${cleanName(s['Surname'])}</strong>
+        </td>
+        <td><span class="chip chip-${s['Class']}">${s['Class']}</span></td>
+        <td class="hide-mobile" style="font-size:var(--font-xs);color:var(--ink3);">${dobFmt}</td>
+        <td style="font-size:var(--font-xs);font-weight:600;">${dob ? ageLabel(dob) : '—'}</td>
+        <td style="font-size:var(--font-xs);font-weight:700;color:${isPast?'var(--green)':'var(--red)'};">
+          ${bd ? countdownLabel(bd) : '—'}
+        </td>
+        <td style="font-size:var(--font-xs);color:var(--ink2);">${dur}</td>
+      </tr>`;
+    }
+
+    // Gender divider only when showing All
+    let rows = '';
+    if (gradGenderFilter === 'all' && boys.length && girls.length) {
+      rows += boys.map(row).join('');
+      rows += `<tr style="background:var(--bg2);"><td colspan="6" style="padding:6px 12px;font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.5px;">— 🧕 GIRLS —</td></tr>`;
+      rows += girls.map(row).join('');
+    } else {
+      rows = ordered.map(row).join('');
+    }
+
     return `<div class="tbl-wrap"><div class="tbl-scroll">
       <table class="sticky-table" style="width:100%;">
         <thead><tr>
@@ -7569,35 +7694,19 @@ function renderGraduating() {
           <th class="hide-mobile">DOB</th>
           <th>Age</th>
           <th>Until 14</th>
+          <th>Studying</th>
         </tr></thead>
-        <tbody>
-          ${students.map(s => {
-            const dob  = parseDob(s['DOB']);
-            const bd   = dob ? birthday14(dob) : null;
-            const icon = s['Gender'] === 'Female' ? '🧕' : '🧒';
-            const dobFmt = dob
-              ? String(dob.getDate()).padStart(2,'0')+'/'+String(dob.getMonth()+1).padStart(2,'0')+'/'+dob.getFullYear()
-              : '—';
-            const isPast = bd && bd <= today;
-            return `<tr onclick="openModal(${db.indexOf(s)})" style="cursor:pointer;">
-              <td class="sticky-col" style="padding:10px 12px;">
-                ${icon} <strong>${cleanName(s['First Name'])} ${cleanName(s['Surname'])}</strong>
-              </td>
-              <td><span class="chip chip-${s['Class']}">${s['Class']}</span></td>
-              <td class="hide-mobile" style="font-size:var(--font-xs);color:var(--ink3);">${dobFmt}</td>
-              <td style="font-size:var(--font-xs);font-weight:600;">${dob ? ageLabel(dob) : '—'}</td>
-              <td style="font-size:var(--font-xs);font-weight:700;color:${isPast?'var(--green)':'var(--red)'};">
-                ${bd ? countdownLabel(bd) : '—'}
-              </td>
-            </tr>`;
-          }).join('')}
-        </tbody>
+        <tbody>${rows}</tbody>
       </table>
     </div></div>`;
   }
 
   const content = el('grad-content');
   if (!content) return;
+
+  const filtered2026 = applyFilter(grads.this);
+  const filtered2027 = applyFilter(grads.next);
+
   content.innerHTML = `
     <div style="margin-bottom:24px;">
       <div style="font-size:var(--font-md);font-weight:700;margin-bottom:4px;">
@@ -7605,10 +7714,10 @@ function renderGraduating() {
       </div>
       <div style="font-size:var(--font-xs);color:var(--ink3);margin-bottom:10px;">
         Students who turn 14 by 1 Sep ${currentYear} ·
-        ${grads.this.length} total
-        (${count(grads.this,'Male')} boys · ${count(grads.this,'Female')} girls)
+        ${grads.this.length} total (${count(grads.this,'Male')} 🧒 · ${count(grads.this,'Female')} 🧕)
+        ${gradGenderFilter !== 'all' ? ' · showing ' + filtered2026.length + ' after filter' : ''}
       </div>
-      ${buildTable(grads.this)}
+      ${buildTable(filtered2026)}
     </div>
     <div>
       <div style="font-size:var(--font-md);font-weight:700;margin-bottom:4px;">
@@ -7616,10 +7725,10 @@ function renderGraduating() {
       </div>
       <div style="font-size:var(--font-xs);color:var(--ink3);margin-bottom:10px;">
         Students who turn 14 by 1 Sep ${currentYear + 1} ·
-        ${grads.next.length} total
-        (${count(grads.next,'Male')} boys · ${count(grads.next,'Female')} girls)
+        ${grads.next.length} total (${count(grads.next,'Male')} 🧒 · ${count(grads.next,'Female')} 🧕)
+        ${gradGenderFilter !== 'all' ? ' · showing ' + filtered2027.length + ' after filter' : ''}
       </div>
-      ${buildTable(grads.next)}
+      ${buildTable(filtered2027)}
     </div>`;
 }
 
@@ -7703,6 +7812,57 @@ function emailWLParent(name, pos, bracket, parentName) {
   );
   _openMailto('mailto:?subject=' + subject + '&body=' + body);
 }
+
+// ── 5.6  Calendar: improved event countdown ───────────────────
+// Override renderCalendar to format next-event countdown as
+// "X weeks Y days" instead of just "Xd", for more readability.
+(function() {
+  const _p5_origRC = typeof renderCalendar === 'function' ? renderCalendar : null;
+  if (!_p5_origRC) return;
+  renderCalendar = function() {
+    _p5_origRC.apply(this, arguments);
+    // Improve countdown format in the "NEXT MILESTONE" chip
+    try {
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+      const upcoming = (TERM_DATES.events || [])
+        .filter(e => e.date >= todayStr)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (!upcoming.length) return;
+      const next = upcoming[0];
+      const days = Math.round((new Date(next.date) - today) / 86400000);
+      let countdown;
+      if (days === 0)       countdown = 'Today!';
+      else if (days === 1)  countdown = 'Tomorrow';
+      else if (days < 7)    countdown = days + ' days';
+      else {
+        const weeks = Math.floor(days / 7);
+        const rem   = days % 7;
+        countdown = weeks + ' week' + (weeks > 1 ? 's' : '') + (rem ? ' ' + rem + 'd' : '');
+      }
+      const dateEl = document.getElementById('cal-next-date');
+      if (dateEl) {
+        const d = new Date(next.date);
+        const formatted = d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'long' });
+        dateEl.textContent = formatted + ' — ' + countdown;
+      }
+    } catch(e) {}
+  };
+})();
+
+// ── 5.7  Post-init re-render ──────────────────────────────────
+// init() fires before sprint overrides are wired up, so the first
+// render misses class-summary cards and the family debt view.
+// Once ALL script blocks have run (we're now at the end of the
+// last script block), call renderDashboard() again with the full
+// override chain so the user sees a complete dashboard instantly.
+(function() {
+  try {
+    if (typeof db !== 'undefined' && Array.isArray(db) && db.length > 0) {
+      renderDashboard();
+    }
+  } catch(e) { console.warn('Phase 5 post-init render:', e); }
+})();
 
 // ── Auth: improve GSI error handling ─────────────────────────
 (function() {
