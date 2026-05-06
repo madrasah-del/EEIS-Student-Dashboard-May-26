@@ -5957,11 +5957,9 @@ Our fee payment schedule:
 You can pay securely online here:
 👉 https://eeis.sumupstore.com/
 
-If you need to discuss a payment arrangement, please do not hesitate to contact us.
-
 JazakAllah Khayran,
 EEIS Al-Kauthar Madrasah
-📧 info@eeis.co.uk`
+📧 madrasah@eeis.co.uk`
   },
   {
     id:'exam-notice',
@@ -5992,7 +5990,7 @@ Please be advised that Al-Kauthar Madrasah will *close for the term break* on [T
 
 We look forward to seeing your children return refreshed in the new term, insha'Allah.
 
-Any queries please contact us at: 📧 info@eeis.co.uk
+Any queries please contact us at: 📧 madrasah@eeis.co.uk
 
 JazakAllah Khayran,
 EEIS Al-Kauthar Madrasah`
@@ -6194,7 +6192,7 @@ function massEmail() {
   const bcc = emails.join(',');
   const subject = encodeURIComponent(tplName + ' — EEIS Al-Kauthar Madrasah');
   const bodyEnc = encodeURIComponent(body.replace(/\n/g,'\r\n'));
-  window.location.href = `mailto:?bcc=${bcc}&subject=${subject}&body=${bodyEnc}`;
+  window.open(`mailto:?bcc=${bcc}&subject=${subject}&body=${bodyEnc}`, '_blank');
   showToast(`✅ Opening email client with ${emails.length} addresses BCC'd`,'green');
   document.getElementById('email-count-label').textContent = emails.length + ' addresses found';
 }
@@ -6247,7 +6245,7 @@ function emailFeeChase() {
   if (!email) { showToast('No email address for this student', 'red'); return; }
   const sub = encodeURIComponent('EEIS Fee Update — ' + cleanName(s['First Name'])+' '+cleanName(s['Surname']));
   const body = encodeURIComponent(msg.replace(/\n/g,'\r\n'));
-  window.location.href = `mailto:${email}?subject=${sub}&body=${body}`;
+  window.open(`mailto:${email}?subject=${sub}&body=${body}`, '_blank');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -6628,7 +6626,7 @@ function openEmailDraft(emails, subject) {
   if (!emails.length) { showToast('No email addresses found for selection', 'red'); return; }
   const bcc  = emails.join(',');
   const sub  = encodeURIComponent(subject || 'EEIS Al-Kauthar Madrasah');
-  window.location.href = `mailto:?bcc=${bcc}&subject=${sub}`;
+  window.open(`mailto:?bcc=${bcc}&subject=${sub}`, '_blank');
   showToast(`✅ Opening email with ${emails.length} address${emails.length>1?'es':''}`,'green');
 }
 
@@ -7037,6 +7035,7 @@ function deleteChaseEntry(sKeyEncoded, realIdx, containerId) {
   }
   renderChaseHistory(s, containerId, {});
   writeDbCache(db); // persist deletion to cache immediately
+  try { renderDebtFamilyView(); } catch(e) {} // refresh dots + chase counts
   showToast('Entry deleted', 'green');
 }
 
@@ -7106,19 +7105,17 @@ Alternatively, you can pay at the office via cash or card.
 
 If you have already made payment or believe there is an error in your records, please contact us with evidence of the bank transfer so we can verify it.
 
-If you have any questions or require a payment plan, please do not hesitate to get in touch.
-
 JazakAllah Khayran,
 EEIS Al-Kauthar Madrasah
-info@eeis.co.uk`);
+madrasah@eeis.co.uk`);
 
-  window.location.href = `mailto:?bcc=${uniqueBcc}&subject=${subject}&body=${body}`;
+  window.open(`mailto:?bcc=${uniqueBcc}&subject=${subject}&body=${body}`, '_blank');
 
   saveDb().then(() => {
     showToast('✅ Email opened — chase logged for ' + selectedFamilyKeys.size + ' families', 'green');
     clearFamilySelection();
     renderDebtFamilyView();
-  }).catch(e => showToast('⚠️ Email opened but not saved: ' + e.message, 'red'));
+  }).catch(e => { console.error('saveDb after mass email:', e); showToast('⚠️ Email opened but log not saved: ' + e.message, 'red'); });
 }
 
 // ── Rewritten renderDebtFamilyView ───────────────────────────
@@ -7284,7 +7281,7 @@ function chaseFamilyWhatsApp(chaseKey, familyKey) {
   const hasPlan = students.some(s => s.paymentPlan);
   if (hasPlan) {
     if (!confirm('⚡ This family has a payment arrangement.\n\nAre you sure you want to chase them?')) return;
-    if (!confirm('Please confirm again — this family has agreed a special payment plan. Only proceed if there is a specific concern.')) return;
+    if (!confirm('Please confirm again — this family has a payment arrangement on file. Only proceed if there is a specific concern.')) return;
   }
   const phone = (s0['Mother Phone']||s0['Father Phone']||'').replace(/[\s\-\(\)]/g,'').replace(/^\+44/,'44').replace(/^0/,'44');
   if (!phone) { showToast('No phone number found for this family', 'red'); return; }
@@ -7311,7 +7308,7 @@ function chaseFamilyEmail(chaseKey, familyKey) {
   const hasPlan = students.some(s => s.paymentPlan);
   if (hasPlan) {
     if (!confirm('⚡ This family has a payment arrangement.\n\nAre you sure you want to chase them?')) return;
-    if (!confirm('Please confirm again — this family has agreed a special payment plan. Only proceed if there is a specific concern.')) return;
+    if (!confirm('Please confirm again — this family has a payment arrangement on file. Only proceed if there is a specific concern.')) return;
   }
   const emails = [];
   students.forEach(s => {
@@ -7329,14 +7326,18 @@ function chaseFamilyEmail(chaseKey, familyKey) {
     return `${cleanName(s['First Name'])} ${cleanName(s['Surname'])} (${s['Class']}):\n  Fees due: ${fmt(s['Fees Due'])}\n  Total paid: ${fmt(paid2)}\n  Outstanding: ${fmt(Math.abs(owed))}\n${pmts ? 'Payments on record:\n'+pmts : ''}`;
   });
   const totalOwed = students.reduce((t,s)=>t+computePaid(s)-(parseFloat(s['Fees Due'])||0),0);
-  const body = `Assalamu Alaikum ${parentName},\n\nWe are writing regarding outstanding fees for the 2025/2026 academic year.\n\n${lines.join('\n\n')}\n\nTotal outstanding: ${fmt(Math.abs(totalOwed))}\n\nPayment options:\n• Online: https://eeis.sumupstore.com/\n• In office: Cash or card\n• Bank transfer: Please contact us for details\n\nIf you have already made payment, please provide your bank transfer reference so we can update our records.\n\nIf you would like to discuss a payment plan, please do not hesitate to contact us.\n\nJazakAllah Khayran,\nEEIS Al-Kauthar Madrasah\ninfo@eeis.co.uk`;
+  const body = `Assalamu Alaikum ${parentName},\n\nWe are writing regarding outstanding fees for the 2025/2026 academic year.\n\n${lines.join('\n\n')}\n\nTotal outstanding: ${fmt(Math.abs(totalOwed))}\n\nPayment options:\n• Online: https://eeis.sumupstore.com/\n• In office: Cash or card\n• Bank transfer: Please contact us for details\n\nIf you have already made payment, please provide your bank transfer reference so we can update our records.\n\nJazakAllah Khayran,\nEEIS Al-Kauthar Madrasah\nmadrasah@eeis.co.uk`;
 
   const subject = encodeURIComponent('Fee Reminder — EEIS Al-Kauthar Madrasah');
-  window.location.href = `mailto:${uniqueEmails.join(',')}?subject=${subject}&body=${encodeURIComponent(body.replace(/\n/g,'\r\n'))}`;
+  // Single family: TO = first email, CC = second email (so both parents can see they both received it)
+  const toAddr = uniqueEmails[0];
+  const ccAddr = uniqueEmails.length > 1 ? uniqueEmails.slice(1).join(',') : '';
+  const ccPart = ccAddr ? `&cc=${encodeURIComponent(ccAddr)}` : '';
+  window.open(`mailto:${encodeURIComponent(toAddr)}?subject=${subject}${ccPart}&body=${encodeURIComponent(body.replace(/\n/g,'\r\n'))}`, '_blank');
 
   const today = new Date().toISOString().slice(0,10);
   students.forEach(s => pushChaseEntry(s, { date: today, note: 'Email sent (individual chase)', method: 'Email', template: 'Individual Chase Email' }));
-  saveDb().then(() => { showToast('✅ Email opened — chase logged', 'green'); renderDebtFamilyView(); }).catch(()=>{});
+  saveDb().then(() => { showToast('✅ Email opened — chase logged', 'green'); renderDebtFamilyView(); }).catch(e => { console.error('saveDb after email:', e); showToast('⚠️ Email opened but log not saved: ' + e.message, 'red'); });
 }
 
 function logFamilyContact(chaseKey, familyKey) {
