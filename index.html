@@ -6192,7 +6192,7 @@ function massEmail() {
   const bcc = emails.join(',');
   const subject = encodeURIComponent(tplName + ' — EEIS Al-Kauthar Madrasah');
   const bodyEnc = encodeURIComponent(body.replace(/\n/g,'\r\n'));
-  window.open(`mailto:?bcc=${bcc}&subject=${subject}&body=${bodyEnc}`, '_blank');
+  _openMailto(`mailto:?bcc=${bcc}&subject=${subject}&body=${bodyEnc}`);
   showToast(`✅ Opening email client with ${emails.length} addresses BCC'd`,'green');
   document.getElementById('email-count-label').textContent = emails.length + ' addresses found';
 }
@@ -6245,7 +6245,7 @@ function emailFeeChase() {
   if (!email) { showToast('No email address for this student', 'red'); return; }
   const sub = encodeURIComponent('EEIS Fee Update — ' + cleanName(s['First Name'])+' '+cleanName(s['Surname']));
   const body = encodeURIComponent(msg.replace(/\n/g,'\r\n'));
-  window.open(`mailto:${email}?subject=${sub}&body=${body}`, '_blank');
+  _openMailto(`mailto:${email}?subject=${sub}&body=${body}`);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -6626,7 +6626,7 @@ function openEmailDraft(emails, subject) {
   if (!emails.length) { showToast('No email addresses found for selection', 'red'); return; }
   const bcc  = emails.join(',');
   const sub  = encodeURIComponent(subject || 'EEIS Al-Kauthar Madrasah');
-  window.open(`mailto:?bcc=${bcc}&subject=${sub}`, '_blank');
+  _openMailto(`mailto:?bcc=${bcc}&subject=${sub}`);
   showToast(`✅ Opening email with ${emails.length} address${emails.length>1?'es':''}`,'green');
 }
 
@@ -7017,6 +7017,8 @@ function renderChaseHistory(s, containerId, opts) {
 }
 
 // ── Delete a single chase history entry ─────────────────────
+// Entries are pushed to ALL students in a family, so deletion must
+// propagate to all siblings too — otherwise count/dot won't clear.
 function deleteChaseEntry(sKeyEncoded, realIdx, containerId) {
   if (!confirm('Delete this chase log entry?')) return;
   const sKey = decodeURIComponent(sKeyEncoded);
@@ -7025,17 +7027,33 @@ function deleteChaseEntry(sKeyEncoded, realIdx, containerId) {
   const sn = sKey.slice(sepIdx + 1);
   const s = db.find(st => (st['First Name']||'') === fn && (st['Surname']||'') === sn);
   if (!s || !Array.isArray(s.chaseHistory)) { showToast('Student not found', 'red'); return; }
-  s.chaseHistory.splice(realIdx, 1);
-  // Sync legacy scalar fields
-  if (s.chaseHistory.length) {
-    s.lastChased   = s.chaseHistory[s.chaseHistory.length-1].date;
-    s.lastResponse = s.chaseHistory[s.chaseHistory.length-1].note;
-  } else {
-    s.lastChased = ''; s.lastResponse = '';
-  }
+
+  // Get the specific entry being deleted (date + method + note fingerprint)
+  const entry = s.chaseHistory[realIdx];
+  if (!entry) { showToast('Entry not found', 'red'); return; }
+
+  // Remove from ALL students in the same family (they all got the same entry pushed)
+  const familyKey = getFamilyKey(s);
+  db.filter(st => getFamilyKey(st) === familyKey).forEach(st => {
+    if (!Array.isArray(st.chaseHistory)) return;
+    const idx = st.chaseHistory.findIndex(e =>
+      e.date === entry.date && e.method === entry.method &&
+      e.template === entry.template && e.note === entry.note
+    );
+    if (idx !== -1) {
+      st.chaseHistory.splice(idx, 1);
+      if (st.chaseHistory.length) {
+        st.lastChased   = st.chaseHistory[st.chaseHistory.length-1].date;
+        st.lastResponse = st.chaseHistory[st.chaseHistory.length-1].note;
+      } else {
+        st.lastChased = ''; st.lastResponse = '';
+      }
+    }
+  });
+
   renderChaseHistory(s, containerId, {});
-  writeDbCache(db); // persist deletion to cache immediately
-  try { renderDebtFamilyView(); } catch(e) {} // refresh dots + chase counts
+  writeDbCache(db);
+  try { renderDebtFamilyView(); } catch(e) {}
   showToast('Entry deleted', 'green');
 }
 
@@ -7068,30 +7086,47 @@ function updateMassChaseBar() {
   if (cnt) cnt.textContent = n + (n===1 ? ' family selected' : ' families selected');
 }
 
+// ── Shared mailto opener (avoids page-navigation issues on iOS) ──
+function _openMailto(href) {
+  const a = document.createElement('a');
+  a.href = href;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// ── Shared post-email save: write cache immediately, sync Sheets silently ──
+function _afterEmailLog(successMsg) {
+  writeDbCache(db);                          // save to cache right away — never lost
+  showToast(successMsg, 'green');
+  try { renderDebtFamilyView(); } catch(e) {}
+  saveDb().catch(e => console.warn('Sheets sync after email (non-critical):', e));
+}
+
 // ── Mass chase email ─────────────────────────────────────────
 function sendMassChaseEmail() {
   if (!selectedFamilyKeys.size) return;
   const families = groupByFamily(db.filter(s => computePaid(s) - (parseFloat(s['Fees Due'])||0) < 0));
-  const bccEmails = [];
+  const allEmails = [];
   const today = new Date().toISOString().slice(0,10);
+  let familyCount = 0;
 
   families.forEach(family => {
     if (!selectedFamilyKeys.has(family.key)) return;
-    const contact = getFamilyContact(family);
-    // Collect Mother + Father emails for each student in family
+    familyCount++;
     family.students.forEach(({s}) => {
-      if (s['Mother Email'] && s['Mother Email'].includes('@')) bccEmails.push(s['Mother Email'].trim());
-      if (s['Father Email'] && s['Father Email'].includes('@')) bccEmails.push(s['Father Email'].trim());
-    });
-    // Auto-log chase for each student in family
-    family.students.forEach(({s}) => {
-      pushChaseEntry(s, { date: today, note: 'Mass email sent', method: 'Email', template: 'Mass Chase' });
+      if (s['Mother Email']?.includes('@')) allEmails.push(s['Mother Email'].trim());
+      if (s['Father Email']?.includes('@')) allEmails.push(s['Father Email'].trim());
+      pushChaseEntry(s, { date: today, note: familyCount === 1 && selectedFamilyKeys.size === 1 ? 'Email sent (individual chase)' : 'Mass email sent', method: 'Email', template: 'Mass Chase' });
     });
   });
 
-  const uniqueBcc = [...new Set(bccEmails)].join(',');
+  const uniqueEmails = [...new Set(allEmails)];
+  if (!uniqueEmails.length) { showToast('No email addresses found', 'red'); return; }
+
   const subject = encodeURIComponent('Fee Reminder — EEIS Al-Kauthar Madrasah');
-  const body = encodeURIComponent(
+  const bodyText =
 `Assalamu Alaikum,
 
 We hope this message finds you and your family well.
@@ -7107,15 +7142,23 @@ If you have already made payment or believe there is an error in your records, p
 
 JazakAllah Khayran,
 EEIS Al-Kauthar Madrasah
-madrasah@eeis.co.uk`);
+madrasah@eeis.co.uk`;
+  const body = encodeURIComponent(bodyText);
 
-  window.open(`mailto:?bcc=${uniqueBcc}&subject=${subject}&body=${body}`, '_blank');
+  let href;
+  if (selectedFamilyKeys.size === 1) {
+    // Single family — TO + CC so both parents can see each other received it
+    const toAddr = encodeURIComponent(uniqueEmails[0]);
+    const ccPart = uniqueEmails.length > 1 ? `&cc=${encodeURIComponent(uniqueEmails.slice(1).join(','))}` : '';
+    href = `mailto:${toAddr}?subject=${subject}${ccPart}&body=${body}`;
+  } else {
+    // Multiple families — BCC to protect privacy between families
+    href = `mailto:?bcc=${encodeURIComponent(uniqueEmails.join(','))}&subject=${subject}&body=${body}`;
+  }
 
-  saveDb().then(() => {
-    showToast('✅ Email opened — chase logged for ' + selectedFamilyKeys.size + ' families', 'green');
-    clearFamilySelection();
-    renderDebtFamilyView();
-  }).catch(e => { console.error('saveDb after mass email:', e); showToast('⚠️ Email opened but log not saved: ' + e.message, 'red'); });
+  _openMailto(href);
+  clearFamilySelection();
+  _afterEmailLog('✅ Chase logged for ' + familyCount + (familyCount === 1 ? ' family' : ' families'));
 }
 
 // ── Rewritten renderDebtFamilyView ───────────────────────────
@@ -7329,15 +7372,14 @@ function chaseFamilyEmail(chaseKey, familyKey) {
   const body = `Assalamu Alaikum ${parentName},\n\nWe are writing regarding outstanding fees for the 2025/2026 academic year.\n\n${lines.join('\n\n')}\n\nTotal outstanding: ${fmt(Math.abs(totalOwed))}\n\nPayment options:\n• Online: https://eeis.sumupstore.com/\n• In office: Cash or card\n• Bank transfer: Please contact us for details\n\nIf you have already made payment, please provide your bank transfer reference so we can update our records.\n\nJazakAllah Khayran,\nEEIS Al-Kauthar Madrasah\nmadrasah@eeis.co.uk`;
 
   const subject = encodeURIComponent('Fee Reminder — EEIS Al-Kauthar Madrasah');
-  // Single family: TO = first email, CC = second email (so both parents can see they both received it)
-  const toAddr = uniqueEmails[0];
-  const ccAddr = uniqueEmails.length > 1 ? uniqueEmails.slice(1).join(',') : '';
-  const ccPart = ccAddr ? `&cc=${encodeURIComponent(ccAddr)}` : '';
-  window.open(`mailto:${encodeURIComponent(toAddr)}?subject=${subject}${ccPart}&body=${encodeURIComponent(body.replace(/\n/g,'\r\n'))}`, '_blank');
+  // TO = first address, CC = second (both parents see it was received by both)
+  const toAddr = encodeURIComponent(uniqueEmails[0]);
+  const ccPart = uniqueEmails.length > 1 ? `&cc=${encodeURIComponent(uniqueEmails.slice(1).join(','))}` : '';
+  _openMailto(`mailto:${toAddr}?subject=${subject}${ccPart}&body=${encodeURIComponent(body.replace(/\n/g,'\r\n'))}`);
 
   const today = new Date().toISOString().slice(0,10);
   students.forEach(s => pushChaseEntry(s, { date: today, note: 'Email sent (individual chase)', method: 'Email', template: 'Individual Chase Email' }));
-  saveDb().then(() => { showToast('✅ Email opened — chase logged', 'green'); renderDebtFamilyView(); }).catch(e => { console.error('saveDb after email:', e); showToast('⚠️ Email opened but log not saved: ' + e.message, 'red'); });
+  _afterEmailLog('✅ Chase logged — email opened');
 }
 
 function logFamilyContact(chaseKey, familyKey) {
