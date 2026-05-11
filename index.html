@@ -2483,11 +2483,20 @@ input, select, textarea {
     <div class="leg-item"><div class="leg-dot leg-today"></div>Today</div>
   </div>
 
-  <div style="margin-bottom:10px;font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:var(--ink2);">Week-by-Week Strip</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:var(--ink2);">Week-by-Week Strip</div>
+    <button id="cal-edit-btn" class="btn btn-ghost btn-sm" onclick="openCalEditor()" style="font-size:11px;display:none;">✏ Edit Dates</button>
+  </div>
   <div class="week-strip-wrap">
     <button class="week-strip-nav" onclick="scrollWeekStrip(-1)" title="Previous weeks">‹</button>
     <div class="week-strip" id="week-strip"></div>
     <button class="week-strip-nav" onclick="scrollWeekStrip(1)" title="Next weeks">›</button>
+  </div>
+
+  <div id="cal-overrides-banner" style="display:none;margin-bottom:10px;padding:8px 12px;background:#fef9c3;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;display:flex;align-items:center;gap:8px;">
+    <span>⚠️ <strong id="cal-overrides-count">0</strong> local date overrides active</span>
+    <button class="btn btn-ghost btn-sm" onclick="openCalEditor()" style="font-size:11px;margin-left:auto;">View overrides</button>
+    <button class="btn btn-ghost btn-sm" onclick="_calClearAllOverrides()" style="font-size:11px;color:#ef4444;">Reset all</button>
   </div>
 
   <div class="cal-grid" id="cal-grid"></div>
@@ -3103,7 +3112,19 @@ function attemptSignIn(email, name) {
   }
 
   const users = loadUsersCache();
-  const userRec = users[normEmail];
+  let userRec = users[normEmail];
+
+  // Auto-provision approved staff on first sign-in (new device / cleared cache)
+  if (!userRec) {
+    const staffMatch = STAFF_IDENTITIES.find(s => s.email.toLowerCase() === normEmail);
+    if (staffMatch) {
+      // Silently create their cache entry so they can sign in immediately
+      users[normEmail] = { name: staffMatch.name, role: staffMatch.role, status: 'approved' };
+      saveUsersCache(users);
+      userRec = users[normEmail];
+      showToast('Welcome ' + staffMatch.name.split(' ')[0] + '! Signing you in…', 'green');
+    }
+  }
 
   if (!userRec) {
     document.getElementById('req-email').value = email;
@@ -8586,6 +8607,269 @@ async function _wlSyncFromSheets() {
       if (name === 'waitlist') setTimeout(_wlShowSyncBanner, 50);
     };
   }
+})();
+
+// ══════════════════════════════════════════════
+// Calendar Date Editor (Super Admin)
+// ══════════════════════════════════════════════
+
+const _CAL_OVERRIDE_KEY = 'eeis_cal_overrides_v1';
+const _CAL_REMINDERS_KEY = 'eeis_cal_reminders_v1';
+
+function _calGetOverrides() {
+  try { return JSON.parse(localStorage.getItem(_CAL_OVERRIDE_KEY) || '{}'); } catch(e) { return {}; }
+}
+function _calSaveOverrides(obj) {
+  localStorage.setItem(_CAL_OVERRIDE_KEY, JSON.stringify(obj));
+  _calApplyOverrides();
+  renderCalendar();
+  _calRefreshBanner();
+}
+function _calGetReminders() {
+  try { return JSON.parse(localStorage.getItem(_CAL_REMINDERS_KEY) || '[]'); } catch(e) { return []; }
+}
+function _calSaveReminders(arr) {
+  localStorage.setItem(_CAL_REMINDERS_KEY, JSON.stringify(arr));
+}
+
+// Apply stored overrides on top of TERM_DATES (called at init + after save)
+function _calApplyOverrides() {
+  const overrides = _calGetOverrides();
+  if (!Object.keys(overrides).length) return;
+  Object.entries(overrides).forEach(([date, action]) => {
+    if (action === 'add-school') {
+      if (!TERM_DATES.schoolSaturdays.includes(date)) TERM_DATES.schoolSaturdays.push(date);
+      TERM_DATES.holidays = TERM_DATES.holidays.filter(d => d !== date);
+    } else if (action === 'add-holiday') {
+      if (!TERM_DATES.holidays.includes(date)) TERM_DATES.holidays.push(date);
+      TERM_DATES.schoolSaturdays = TERM_DATES.schoolSaturdays.filter(d => d !== date);
+      TERM_DATES.events = TERM_DATES.events.filter(e => e.date !== date);
+    } else if (action && action.startsWith('add-event:')) {
+      const parts = action.split(':');
+      const label = parts[1] || 'Event';
+      const type  = parts[2] || 'jalsa';
+      TERM_DATES.events = TERM_DATES.events.filter(e => e.date !== date);
+      TERM_DATES.events.push({ date, label, type });
+    } else if (action === 'remove-event') {
+      TERM_DATES.events = TERM_DATES.events.filter(e => e.date !== date);
+    }
+  });
+}
+
+function _calClearAllOverrides() {
+  if (!confirm('Reset all local calendar overrides? The baked term dates will be restored.')) return;
+  localStorage.removeItem(_CAL_OVERRIDE_KEY);
+  location.reload();
+}
+
+function _calRefreshBanner() {
+  const overrides = _calGetOverrides();
+  const count = Object.keys(overrides).length;
+  const banner = document.getElementById('cal-overrides-banner');
+  const countEl = document.getElementById('cal-overrides-count');
+  if (banner) {
+    if (count > 0) {
+      banner.style.display = 'flex';
+      if (countEl) countEl.textContent = count;
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+  // Show edit button for super admin
+  const editBtn = document.getElementById('cal-edit-btn');
+  if (editBtn && currentUser?.role === 'Super-Admin') editBtn.style.display = '';
+}
+
+// ── Calendar Editor Modal ─────────────────────
+function openCalEditor() {
+  if (currentUser?.role !== 'Super-Admin') { showToast('Super Admin only', 'red'); return; }
+
+  let overlay = document.getElementById('cal-editor-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'cal-editor-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9500;display:flex;align-items:flex-end;';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
+  }
+  overlay.style.display = 'flex';
+  _calRenderEditor();
+}
+
+function _calRenderEditor() {
+  const overlay = document.getElementById('cal-editor-overlay');
+  if (!overlay) return;
+  const overrides = _calGetOverrides();
+  const reminders = _calGetReminders();
+
+  // Build list of all Saturdays (school + holidays) for toggles
+  const allDates = [
+    ...TERM_DATES.schoolSaturdays,
+    ...TERM_DATES.holidays
+  ].filter((v,i,a)=>a.indexOf(v)===i).sort();
+
+  const overrideRows = Object.entries(overrides).map(([date, action]) => {
+    let desc = action;
+    if (action === 'add-school') desc = '📚 Changed to class day';
+    if (action === 'add-holiday') desc = '🏖 Changed to holiday/closed';
+    if (action === 'remove-event') desc = '🗑 Event removed';
+    if (action.startsWith('add-event:')) desc = '📌 Event added: ' + action.split(':')[1];
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span style="font-family:monospace;font-size:12px;flex:1;">${date}</span>
+      <span style="font-size:12px;color:var(--ink2);">${desc}</span>
+      <button onclick="_calRemoveOverride('${date}')" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:14px;">✕</button>
+    </div>`;
+  }).join('') || '<p style="color:var(--ink3);font-size:13px;">No overrides yet — all dates are from the baked term schedule.</p>';
+
+  const reminderRows = reminders.map((r, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span style="font-family:monospace;font-size:12px;">${r.date}</span>
+      <span style="flex:1;font-size:13px;">${r.label}</span>
+      <button onclick="_calDeleteReminder(${i})" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:14px;">✕</button>
+    </div>`).join('') || '<p style="color:var(--ink3);font-size:13px;margin:0;">No reminders added yet.</p>';
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:88vh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom);">
+      <div style="display:flex;align-items:center;padding:16px 16px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:1;">
+        <span style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;flex:1;">📅 Edit Calendar Dates</span>
+        <button onclick="document.getElementById('cal-editor-overlay').style.display='none';" style="background:none;border:none;font-size:22px;color:var(--ink3);cursor:pointer;">✕</button>
+      </div>
+
+      <div style="padding:16px;">
+
+        <!-- Override a Saturday -->
+        <div style="margin-bottom:20px;">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;">🔄 Override a Saturday</h3>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px;">
+            <input type="date" id="cal-ed-date" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+            <select id="cal-ed-action" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+              <option value="add-school">📚 Make it a class day</option>
+              <option value="add-holiday">🏖 Make it a holiday/closed</option>
+            </select>
+          </div>
+          <button class="btn btn-dark" onclick="_calAddSatOverride()" style="width:100%;">Apply override</button>
+        </div>
+
+        <!-- Add / remove an event -->
+        <div style="margin-bottom:20px;padding-top:16px;border-top:1px solid var(--border);">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;">📌 Add or Remove an Event</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+            <input type="date" id="cal-ev-date" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+            <input type="text" id="cal-ev-label" placeholder="Event label (e.g. Exam)" maxlength="20" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+            <select id="cal-ev-type" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+              <option value="jalsa">Jalsa / Special</option>
+              <option value="exam">Exam</option>
+              <option value="halfterm">Half Term</option>
+              <option value="school">Class</option>
+            </select>
+            <button class="btn btn-dark" onclick="_calAddEvent()">Add event</button>
+          </div>
+          <div style="margin-top:8px;">
+            <input type="date" id="cal-ev-rm-date" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;width:100%;box-sizing:border-box;">
+            <button class="btn btn-ghost" onclick="_calRemoveEvent()" style="width:100%;margin-top:6px;font-size:12px;">🗑 Remove event on this date</button>
+          </div>
+        </div>
+
+        <!-- Reminders -->
+        <div style="margin-bottom:20px;padding-top:16px;border-top:1px solid var(--border);">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;">⏰ Reminder Dates</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:center;">
+            <input type="date" id="cal-rem-date" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+            <input type="text" id="cal-rem-label" placeholder="Reminder label" maxlength="40" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+            <button class="btn btn-dark" onclick="_calAddReminder()">Add</button>
+          </div>
+          <div id="cal-reminder-list">${reminderRows}</div>
+        </div>
+
+        <!-- Active overrides list -->
+        <div style="padding-top:16px;border-top:1px solid var(--border);">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;">📋 Active Overrides</h3>
+          <div id="cal-override-list">${overrideRows}</div>
+          ${Object.keys(overrides).length > 0 ? `<button class="btn btn-ghost" onclick="_calClearAllOverrides()" style="width:100%;margin-top:12px;color:#ef4444;font-size:12px;">🗑 Reset all overrides</button>` : ''}
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+function _calAddSatOverride() {
+  const date = document.getElementById('cal-ed-date')?.value;
+  const action = document.getElementById('cal-ed-action')?.value;
+  if (!date) { showToast('Pick a date first', 'red'); return; }
+  const overrides = _calGetOverrides();
+  overrides[date] = action;
+  _calSaveOverrides(overrides);
+  showToast('✅ Override saved — calendar updated', 'green');
+  _calRenderEditor();
+}
+
+function _calAddEvent() {
+  const date  = document.getElementById('cal-ev-date')?.value;
+  const label = document.getElementById('cal-ev-label')?.value?.trim();
+  const type  = document.getElementById('cal-ev-type')?.value;
+  if (!date || !label) { showToast('Date and label required', 'red'); return; }
+  const overrides = _calGetOverrides();
+  overrides[date] = `add-event:${label}:${type}`;
+  _calSaveOverrides(overrides);
+  showToast('✅ Event added to calendar', 'green');
+  _calRenderEditor();
+}
+
+function _calRemoveEvent() {
+  const date = document.getElementById('cal-ev-rm-date')?.value;
+  if (!date) { showToast('Pick the event date to remove', 'red'); return; }
+  const overrides = _calGetOverrides();
+  overrides[date] = 'remove-event';
+  _calSaveOverrides(overrides);
+  showToast('✅ Event removed from calendar', 'green');
+  _calRenderEditor();
+}
+
+function _calRemoveOverride(date) {
+  const overrides = _calGetOverrides();
+  delete overrides[date];
+  _calSaveOverrides(overrides);
+  showToast('Override removed', 'green');
+  _calRenderEditor();
+}
+
+function _calAddReminder() {
+  const date  = document.getElementById('cal-rem-date')?.value;
+  const label = document.getElementById('cal-rem-label')?.value?.trim();
+  if (!date || !label) { showToast('Date and label required', 'red'); return; }
+  const reminders = _calGetReminders();
+  reminders.push({ date, label });
+  reminders.sort((a,b) => a.date.localeCompare(b.date));
+  _calSaveReminders(reminders);
+  showToast('⏰ Reminder added', 'green');
+  _calRenderEditor();
+}
+
+function _calDeleteReminder(idx) {
+  const reminders = _calGetReminders();
+  reminders.splice(idx, 1);
+  _calSaveReminders(reminders);
+  showToast('Reminder removed', 'green');
+  _calRenderEditor();
+}
+
+// Apply overrides on page load (after TERM_DATES is defined)
+try { _calApplyOverrides(); } catch(e) {}
+
+// Show Edit button and banner when calendar tab is opened
+(function() {
+  const _calOrigST = typeof switchTab === 'function' ? switchTab : null;
+  if (!_calOrigST) return;
+  const __calST = switchTab;
+  switchTab = function(name) {
+    __calST.apply(this, arguments);
+    if (name === 'calendar') setTimeout(() => {
+      try { _calRefreshBanner(); } catch(e) {}
+    }, 100);
+  };
 })();
 
 </script>
