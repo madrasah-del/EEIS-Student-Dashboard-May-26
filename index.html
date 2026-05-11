@@ -1944,6 +1944,62 @@ input, select, textarea {
 .comm-log-summary { background:var(--blue-lt);border:1px solid #c3d4f0;border-radius:8px;padding:10px 14px;margin-top:12px; }
 .comm-log-summary-title { font-size:var(--font-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--blue);margin-bottom:6px; }
 .comm-log-summary-row { font-size:var(--font-sm);color:var(--ink2);display:flex;align-items:baseline;gap:6px;flex-wrap:wrap; }
+
+/* ══════════════════════════════════════════════
+   PRINT STYLES
+══════════════════════════════════════════════ */
+@media print {
+  /* Hide everything except the active panel */
+  #auth-screen, .app-header, .nav, #sync-status,
+  .hdr-btn, .user-avatar, .tab, .tab-bar,
+  .sort-bar, .debt-sort-bar, .filter-bar, .wl-filter-bar,
+  .search-wrap, .flt, button:not(.print-keep),
+  #p6-audit-btn, #p6-wa-btn, #cal-edit-btn,
+  .wl-sync-banner, .debt-view-toggle,
+  .modal-overlay, #p6-staff-detail-overlay, #cal-editor-overlay,
+  .contact-actions, .btn-whatsapp, .btn-email-contact,
+  .att-dot, .staff-card-cb { display: none !important; }
+
+  body { background: #fff !important; font-size: 11pt; color: #000; }
+  #main-app { padding: 0 !important; }
+
+  /* Show only the active panel; hide all others */
+  .panel { display: none !important; }
+  .panel.active { display: block !important; }
+
+  /* Calendar print: show all months in a grid */
+  #panel-calendar.active .cal-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 10px !important;
+  }
+  #panel-calendar.active .week-strip-wrap { display: none !important; }
+  #panel-calendar.active .term-countdown { background: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Tables */
+  table { width: 100% !important; border-collapse: collapse; font-size: 9pt; }
+  th, td { border: 1px solid #ccc !important; padding: 4px 6px !important; }
+  thead { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Calendar month header keep colour */
+  .cal-month-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .cal-day.school-sat .day-num, .cal-day.exam-day .day-num,
+  .cal-day.jalsa-day .day-num, .cal-day.halfterm-day .day-num,
+  .cal-day.today .day-num { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Staff print: 2 col cards */
+  .staff-grid { display: grid !important; grid-template-columns: repeat(2,1fr) !important; gap: 10px !important; }
+  .staff-card { page-break-inside: avoid; }
+
+  /* Page margins */
+  @page { margin: 15mm 12mm; }
+
+  /* Print header injected by JS */
+  #print-header { display: block !important; text-align: center; margin-bottom: 16px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+}
+
+/* Hidden unless printing */
+#print-header { display: none; }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -2051,12 +2107,20 @@ input, select, textarea {
 ══════════════════════════════════════════════ -->
 <div id="main-app" style="display:none;">
 
+<!-- Print header — hidden on screen, shown only when printing -->
+<div id="print-header">
+  <div style="font-family:'Cormorant Garamond',serif;font-size:22pt;font-weight:700;">EEIS Al-Kauthar Saturday Madrasah — Epsom</div>
+  <div id="print-subtitle" style="font-size:13pt;margin-top:4px;color:#333;"></div>
+  <div id="print-date" style="font-size:10pt;color:#666;margin-top:2px;"></div>
+</div>
+
 <!-- HEADER -->
 <div class="app-header">
   <div class="app-logo"><span>✦</span><span class="logo-full">EEIS Al-Kauthar</span><span class="logo-short">EEIS</span></div>
   <div class="header-right">
     <span class="sync-pill sync-none" id="sync-status">⚪ Not synced</span>
     <button class="hdr-btn" onclick="loadFromSheets()" title="Reload data from Google Sheets" style="min-height:36px;min-width:36px;">↻</button>
+    <button class="hdr-btn" id="print-btn" onclick="triggerPrint()" title="Print current view" style="min-height:36px;min-width:36px;display:none;">🖨</button>
     <button class="hdr-btn" onclick="openHelp()" title="Help & User Guide" style="min-height:36px;min-width:36px;font-weight:700;">?</button>
     <!-- user avatar -->
     <div class="user-avatar" id="user-avatar" onclick="toggleUserMenu()">
@@ -8859,18 +8923,298 @@ function _calDeleteReminder(idx) {
 // Apply overrides on page load (after TERM_DATES is defined)
 try { _calApplyOverrides(); } catch(e) {}
 
-// Show Edit button and banner when calendar tab is opened
+// Show Edit button and banner when calendar tab is opened; show print button on printable panels
 (function() {
   const _calOrigST = typeof switchTab === 'function' ? switchTab : null;
   if (!_calOrigST) return;
   const __calST = switchTab;
+  const PRINTABLE = new Set(['students','calendar','staff','medical','waitlist','graduating']);
   switchTab = function(name) {
     __calST.apply(this, arguments);
     if (name === 'calendar') setTimeout(() => {
       try { _calRefreshBanner(); } catch(e) {}
     }, 100);
+    // Show / hide print button
+    const pb = document.getElementById('print-btn');
+    if (pb) pb.style.display = PRINTABLE.has(name) ? '' : 'none';
   };
 })();
+
+// ══════════════════════════════════════════════
+// PRINT
+// ══════════════════════════════════════════════
+
+const _PANEL_LABELS = {
+  dashboard: 'Dashboard', students: 'Student Register', staff: 'Staff Directory',
+  waitlist: 'Waiting List', medical: 'Medical & Allergy Register',
+  calendar: 'Term Calendar 2025–2026', graduating: 'Graduating Students'
+};
+
+function triggerPrint() {
+  // Identify active panel
+  const activePanel = document.querySelector('.panel.active');
+  const panelId = activePanel?.id?.replace('panel-','') || 'dashboard';
+
+  // Set print header content
+  const label = _PANEL_LABELS[panelId] || panelId;
+  const subtitle = document.getElementById('print-subtitle');
+  const dateEl   = document.getElementById('print-date');
+  if (subtitle) subtitle.textContent = label;
+  if (dateEl) dateEl.textContent = 'Printed: ' + new Date().toLocaleDateString('en-GB', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  // For calendar panel: expand all months if collapsed
+  if (panelId === 'calendar') {
+    // Ensure cal-grid is fully rendered
+    if (typeof renderCalendar === 'function') renderCalendar();
+  }
+
+  // Small delay so DOM settles, then print
+  setTimeout(() => window.print(), 150);
+}
+
+// ══════════════════════════════════════════════
+// CALENDAR CHANGE NOTIFICATIONS
+// ══════════════════════════════════════════════
+
+// Wrap _calSaveOverrides to trigger notification prompt after any change
+const _origCalSaveOverrides = _calSaveOverrides;
+// (already defined above; wrap it here so the prompt fires)
+const __prevCalSave = typeof _calSaveOverrides === 'function' ? _calSaveOverrides : null;
+
+function _calSaveOverridesWithPrompt(obj, changedDate, changeDesc) {
+  _calSaveOverrides(obj);
+  // Prompt to notify parents (after a brief delay so the calendar re-renders first)
+  if (changedDate && changeDesc) {
+    setTimeout(() => {
+      _promptCalNotify(changedDate, changeDesc);
+    }, 400);
+  }
+}
+
+function _calAddSatOverrideWithPrompt() {
+  const date   = document.getElementById('cal-ed-date')?.value;
+  const action = document.getElementById('cal-ed-action')?.value;
+  if (!date) { showToast('Pick a date first', 'red'); return; }
+  const desc = action === 'add-school' ? `${_fmtDate(date)} changed to a CLASS day (previously closed)` :
+               `${_fmtDate(date)} changed to CLOSED / holiday (previously a class day)`;
+  const overrides = _calGetOverrides();
+  overrides[date] = action;
+  _calSaveOverrides(overrides);
+  showToast('✅ Override saved — calendar updated', 'green');
+  _calRenderEditor();
+  setTimeout(() => _promptCalNotify(date, desc), 400);
+}
+
+function _calAddEventWithPrompt() {
+  const date  = document.getElementById('cal-ev-date')?.value;
+  const label = document.getElementById('cal-ev-label')?.value?.trim();
+  const type  = document.getElementById('cal-ev-type')?.value;
+  if (!date || !label) { showToast('Date and label required', 'red'); return; }
+  const desc = `Event added on ${_fmtDate(date)}: "${label}"`;
+  const overrides = _calGetOverrides();
+  overrides[date] = `add-event:${label}:${type}`;
+  _calSaveOverrides(overrides);
+  showToast('✅ Event added to calendar', 'green');
+  _calRenderEditor();
+  setTimeout(() => _promptCalNotify(date, desc), 400);
+}
+
+// Override the editor button onclick handlers after render
+const _origCalRenderEditor = _calRenderEditor;
+_calRenderEditor = function() {
+  _origCalRenderEditor.apply(this, arguments);
+  // Replace button onclick handlers with notification-aware versions
+  // (find buttons by querying after render — editor HTML is dynamic)
+  setTimeout(() => {
+    const addSatBtn = document.querySelector('#cal-editor-overlay .btn-dark');
+    if (addSatBtn && addSatBtn.textContent.includes('Apply override')) {
+      addSatBtn.onclick = _calAddSatOverrideWithPrompt;
+    }
+  }, 50);
+};
+
+function _fmtDate(iso) {
+  try {
+    const d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  } catch(e) { return iso; }
+}
+
+// Prompt overlay: "Notify parents about this change?"
+function _promptCalNotify(changedDate, changeDesc) {
+  let overlay = document.getElementById('cal-notify-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'cal-notify-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
+  }
+
+  const calText = _buildCalendarText();
+  const calTextEnc = encodeURIComponent(calText);
+  const waGroupLink = 'https://chat.whatsapp.com/CFzCVZBpcwfK5Vcy1I4ceR?mode=gi_t';
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;width:100%;max-width:500px;max-height:85vh;overflow-y:auto;">
+      <div style="padding:16px 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">📢</span>
+        <span style="font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:700;flex:1;">Notify Parents of Calendar Change?</span>
+        <button onclick="document.getElementById('cal-notify-overlay').style.display='none';" style="background:none;border:none;font-size:22px;color:var(--ink3);cursor:pointer;">✕</button>
+      </div>
+      <div style="padding:16px;">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:var(--blue);">
+          <strong>Change made:</strong><br>${changeDesc}
+        </div>
+
+        <label style="font-size:12px;font-weight:700;color:var(--ink3);display:block;margin-bottom:6px;">FREE-TEXT RATIONALE (optional)</label>
+        <textarea id="cal-notify-rationale" placeholder="e.g. Due to the school hall being unavailable on the 30th, we have moved the class to the 23rd. We apologise for any inconvenience." rows="3" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:vertical;font-family:'DM Sans',sans-serif;"></textarea>
+
+        <label style="font-size:12px;font-weight:700;color:var(--ink3);display:block;margin:12px 0 6px;">FULL CALENDAR PREVIEW (included in message)</label>
+        <textarea id="cal-notify-preview" rows="10" readonly style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:11px;font-family:monospace;background:#f9fafb;resize:vertical;color:var(--ink2);"></textarea>
+
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+          <button class="btn btn-dark" onclick="_calSendEmailNotify('${changedDate.replace(/'/g,"\\'")}','${changeDesc.replace(/'/g,"\\'")}');" style="flex:1;">📧 Email all parents (BCC)</button>
+          <button class="btn" style="flex:1;background:#25d366;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;" onclick="_calCopyForWA('${changedDate.replace(/'/g,"\\'")}','${changeDesc.replace(/'/g,"\\'")}')">💬 Copy for WhatsApp</button>
+        </div>
+        <button onclick="document.getElementById('cal-notify-overlay').style.display='none';" style="width:100%;margin-top:8px;background:none;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;color:var(--ink3);cursor:pointer;">Skip — don't notify</button>
+      </div>
+    </div>
+  `;
+
+  // Populate preview
+  const prev = document.getElementById('cal-notify-preview');
+  if (prev) prev.value = calText;
+
+  overlay.style.display = 'flex';
+}
+
+function _calSendEmailNotify(changedDate, changeDesc) {
+  const rationale = document.getElementById('cal-notify-rationale')?.value?.trim() || '';
+  const calText = document.getElementById('cal-notify-preview')?.value || _buildCalendarText();
+
+  const subject = `Updated Term Calendar — EEIS Al-Kauthar Madrasah`;
+  const body = _buildCalendarEmailBody(changeDesc, rationale, calText);
+
+  // BCC all parent emails
+  const emails = [...new Set(db.flatMap(s => [s['Mother Email'], s['Father Email']]).filter(e => e && String(e).includes('@')))];
+  const bcc = emails.join(',');
+  _openMailto(`mailto:?bcc=${encodeURIComponent(bcc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+  showToast(`📧 Opening email with ${emails.length} parents BCC'd`, 'green');
+}
+
+function _calCopyForWA(changedDate, changeDesc) {
+  const rationale = document.getElementById('cal-notify-rationale')?.value?.trim() || '';
+  const calText = document.getElementById('cal-notify-preview')?.value || _buildCalendarText();
+  const msg = _buildCalendarWAMessage(changeDesc, rationale, calText);
+
+  navigator.clipboard.writeText(msg).then(() => {
+    showToast('✅ Copied! Paste into the EEIS Madrasah WhatsApp group', 'green');
+  }).catch(() => {
+    // Fallback: show in a text area
+    const ta = document.getElementById('cal-notify-preview');
+    if (ta) { ta.value = msg; ta.select(); showToast('Select all and copy ↑', 'blue'); }
+  });
+}
+
+// ── Calendar text formatter ────────────────────
+
+function _buildCalendarText() {
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  // Group school Saturdays by term
+  const t1 = TERM_DATES.schoolSaturdays.filter(d => d >= '2025-09-01' && d <= '2025-12-31').sort();
+  const t2 = TERM_DATES.schoolSaturdays.filter(d => d >= '2026-01-01' && d <= '2026-02-28').sort();
+  const t3 = TERM_DATES.schoolSaturdays.filter(d => d >= '2026-03-01' && d <= '2026-08-31').sort();
+
+  const fmt = iso => {
+    const d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  };
+  const fmtFull = iso => {
+    const d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+  };
+
+  const termBlock = (label, dates) => {
+    if (!dates.length) return '';
+    return `📚 ${label}\n${dates.map(d => {
+      const ev = TERM_DATES.events.find(e => e.date === d);
+      return `  • ${fmt(d)}${ev ? '  ← ' + ev.label : ''}`;
+    }).join('\n')}`;
+  };
+
+  const holidays = TERM_DATES.holidays.filter(d => d >= '2025-09-01' && d <= '2026-08-31').sort();
+  const holBlock = holidays.map(d => {
+    const ev = TERM_DATES.events.find(e => e.date === d);
+    return `  • ${fmtFull(d)}${ev ? ' — ' + ev.label : ' — Closed'}`;
+  }).join('\n');
+
+  const events = TERM_DATES.events.filter(e =>
+    !TERM_DATES.schoolSaturdays.includes(e.date) && !TERM_DATES.holidays.includes(e.date)
+  );
+  const evBlock = events.length ? events.map(e => `  • ${fmtFull(e.date)} — ${e.label}`).join('\n') : '';
+
+  // Reminders from localStorage
+  const reminders = _calGetReminders?.() || [];
+  const remBlock = reminders.length ? reminders.map(r => `  • ${fmtFull(r.date)} — ${r.label}`).join('\n') : '';
+
+  let text = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EEIS Al-Kauthar Saturday Madrasah
+Term Calendar 2025 – 2026
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${termBlock('TERM 1 — Autumn (Sep – Dec 2025)', t1)}
+
+${termBlock('TERM 2 — Spring (Jan – Feb 2026)', t2)}
+
+${termBlock('TERM 3 — Summer (Mar – Jul 2026)', t3)}
+
+🏖 HOLIDAYS & CLOSED DAYS:
+${holBlock || '  None'}`;
+
+  if (evBlock) text += `\n\n📌 KEY EVENTS:\n${evBlock}`;
+  if (remBlock) text += `\n\n⏰ REMINDERS:\n${remBlock}`;
+
+  text += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🕌 Madrasah: Saturday mornings | EEIS, Epsom
+📞 Contact: madrasah@eeis.co.uk
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+  return text;
+}
+
+function _buildCalendarEmailBody(changeDesc, rationale, calText) {
+  return `Assalamu Alaikum Dear Parents and Guardians,
+
+We are writing to inform you of an update to our term calendar.
+
+📅 CHANGE:
+${changeDesc}
+${rationale ? '\n' + rationale + '\n' : ''}
+Please see the updated calendar below for reference.
+
+JazakAllah Khayran for your continued support.
+
+EEIS Al-Kauthar Madrasah
+madrasah@eeis.co.uk
+
+════════════════════════════════════════
+
+${calText}`;
+}
+
+function _buildCalendarWAMessage(changeDesc, rationale, calText) {
+  return `*Assalamu Alaikum Dear Parents* 🕌
+
+We have updated our term calendar:
+
+📅 *${changeDesc}*
+${rationale ? '\n_' + rationale + '_\n' : ''}
+Please see the full updated schedule below 👇
+
+${calText}`;
+}
 
 </script>
 </body>
