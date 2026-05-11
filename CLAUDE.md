@@ -108,33 +108,45 @@ doPost(e)                // Reads/writes any tab by name
 ### ✅ Completed
 - **Phase 1**: Auth, Sheets connection, session, identity selector
 - **Phase 2**: Mobile-first CSS, font sizes (xs:13px, sm:15px, md:17px, lg:21px), touch targets
-- **Phase 3 (partial)**: Phone tappable → Call/WA popup, email tappable → mailto:, comm log summary on Info tab, payment methods standardised (Cash/Card/Bank Transfer/Standing Order/Online/Waived)
-- **Bug fix**: Pull-to-refresh on mobile no longer wipes dashboard data (`overscroll-behavior:none`, iOS touch handler, try-catch around renderDebtFamilyView)
-- **Phase 4 (Checkpoint 1)**:
-  - `chaseHistory` array on student objects (with backfill from legacy `lastChased`/`lastResponse`)
-  - `pushChaseEntry()`, `getLastChase()`, `renderChaseHistory()` — canonical chase log functions
-  - Compact family debt cards (single-line header: name · amount · chase count)
-  - Sort by **Highest debt** or **Least contacted** (toggle buttons)
-  - Payment plan families separated into their own section with double-confirm warning
-  - Multi-select families → **Mass Email (BCC)** to all parent emails, generic template
-  - Per-family: **WhatsApp** (personalised with amounts per child), **Email** (full breakdown), **Log Contact** (inline form)
-  - Auto-log every send to `s.chaseHistory`
-  - **? Help button** in header → role guide overlay (Viewer / Editor / Super Admin)
-  - Auth: GSI error callback for better OAuth failure messages
+- **Phase 3 (partial)**: Phone tappable → Call/WA popup, email tappable → mailto:, comm log summary on Info tab, payment methods standardised
+- **Phase 4**: Chase history system (`chaseHistory` array + `pushChaseEntry`/`getLastChase`/`renderChaseHistory`), compact family debt cards, sort by debt/least-contacted, payment plan protection, multi-select mass email, per-family WhatsApp/Email/Log Contact, ? Help overlay, GSI error callback
+- **Phase 5 (May 2026)**:
+  - Dashboard stats persist across app reopen (stat snapshot + post-init re-render)
+  - Cache written on `pagehide` + `visibilitychange` (survives app close)
+  - 🎓 Graduation tab: boys/girls grouped with divider, gender filter, "Studying" duration column
+  - Student modal: "📅 Xy Xm with us" chip from Start Date
+  - Individual debt view: Chases column (dot + count), sort by least-contacted
+  - Medical: larger font (13px), sorted critical-first
+  - Waiting list: Email button replaces Copy Msg
+  - Calendar: next-event countdown in weeks+days
 
-### 🔲 Next Sprints
-- **Sprint: Staff tab** — compact cards (name, class, role, DBS badge), tap → detail modal with DBS + pay info
-- **Sprint: Comm log upgrade** — proper scrollable history in Fees tab (replace single date/response pair)
-- **Sprint: Waiting list live sync** — fetch new Google Form entries since last known date
-- **Sprint: 3 WhatsApp fee chase templates** (1st/2nd/Final) in Comms panel with reminder selector
-- **Sprint: Phase 5** — student class chip filter bar, waiting list 7-level categories
+### 🔲 Planned Sprints (Phase 6)
+
+| Sprint | Feature | Status |
+|--------|---------|--------|
+| A | Fix green dot persisting after chase log delete | Ready |
+| B | Sibling detection + waiting-list cross-reference in student modal | Ready |
+| C | Family contact consistency audit + missing-info audit | Ready |
+| D | Staff tab: compact cards + click-to-detail modal | Ready |
+| E | Calendar: auto-scroll to current week, August month, bigger chips | Ready |
+| F | WhatsApp group comparison tool (manual paste-and-compare) | Ready |
+| G | Waiting list live sync from Sheets | Needs Apps Script change |
+| H | Excel migration sync | Deferred (needs scoping) |
 
 ## Known Issues / Next Fix
 
-- Staff cards are still large (full attendance tracker visible) — compact redesign is next sprint
+- **Green dot bug**: chase dot shows for families whose log was deleted — `lastChased` legacy fallback still triggers (Sprint A)
+- **Staff cards** still large (full attendance tracker visible) — compact redesign is Sprint D
 - `chaseHistory` not persisted to Sheets (localStorage only) — Sheets column needed in future
 - Google OAuth `origin_mismatch` if `madrasah.eeis.store` not added to Cloud Console
 - Staff data falls back to seed (`pushStaffSeed()`) if the Staff sheet tab is empty
+
+## Data Model Notes (Phase 5+)
+
+- `s.chaseHistory` — cache/localStorage only (NOT in Sheets). Array of `{date, note, method, sentBy, template}`. Survives refresh, lost on cache clear.
+- `s.paymentPlan` / `s.paymentPlanNotes` — cache only
+- **Stat snapshot** (`eeis_stats_snap_v1`) — localStorage; stores last rendered dashboard card values for instant display on reopen
+- **Two chase-tracking systems coexist**: `chaseHistory` (current, per-student array) and `commLog` (legacy, per-family localStorage object). Phase 4 reads `chaseHistory`; old code falls back to `commLog.lastChased`. Both are kept in sync when logging new chases.
 
 ## Google Cloud Console Notes
 

@@ -2631,6 +2631,7 @@ input, select, textarea {
       </div>
       <div class="sec-hd">Allergies & Medical</div>
       <div id="mi-allergy-wrap" style="margin-bottom:12px;"></div>
+      <div id="mi-siblings-wrap"></div>
       <div id="mi-comments-wrap"></div>
       <div id="mi-comm-log-wrap"></div>
       <div id="mi-payment-link" style="margin-top:10px;padding:10px 14px;background:var(--green-lt);border:1px solid #86efac;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
@@ -3546,7 +3547,8 @@ function migrateRecord(s) {
     }
   }
   // PHASE 4: backfill chase history array from legacy scalar fields
-  if (!s.chaseHistory) {
+  // Use Array.isArray guard — empty [] must NOT trigger re-backfill (Sprint A fix)
+  if (!Array.isArray(s.chaseHistory)) {
     s.chaseHistory = [];
     if (s.lastChased || s.lastResponse) {
       s.chaseHistory.push({
@@ -7083,6 +7085,18 @@ function deleteChaseEntry(sKeyEncoded, realIdx, containerId) {
     }
   });
 
+  // Final sync pass: ensure lastChased/lastResponse match chaseHistory for ALL
+  // family members — catches siblings that didn't have the fingerprint match
+  db.filter(st => getFamilyKey(st) === familyKey).forEach(st => {
+    if (!Array.isArray(st.chaseHistory)) return;
+    if (st.chaseHistory.length) {
+      st.lastChased   = st.chaseHistory[st.chaseHistory.length - 1].date;
+      st.lastResponse = st.chaseHistory[st.chaseHistory.length - 1].note;
+    } else {
+      st.lastChased = ''; st.lastResponse = '';
+    }
+  });
+
   renderChaseHistory(s, containerId, {});
   writeDbCache(db);
   try { renderDebtFamilyView(); } catch(e) {}
@@ -7893,6 +7907,391 @@ function emailWLParent(name, pos, bracket, parentName) {
         });
       }
     } catch(e) { console.warn('GSI error callback setup failed:', e); }
+  };
+})();
+
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// PHASE 6: SIBLING DETECTION · CONTACT AUDIT · STAFF CARDS
+//          CALENDAR UPGRADES · WHATSAPP COMPARISON
+// ══════════════════════════════════════════════════════════════
+
+// ── 6.A  Sprint A already applied (migrateRecord + deleteChaseEntry) ──
+
+// ── 6.B  Sibling detection & waiting-list cross-reference ─────
+(function() {
+  const _p6_origOpenModal = openModal;
+  openModal = function(idx) {
+    _p6_origOpenModal.apply(this, arguments);
+    try { _p6_renderSiblings(idx); } catch(e) { console.warn('sibling render:', e); }
+  };
+})();
+
+function _p6_renderSiblings(idx) {
+  const wrap = document.getElementById('mi-siblings-wrap');
+  if (!wrap) return;
+  const s = db[idx];
+  if (!s) { wrap.innerHTML = ''; return; }
+
+  const key = getFamilyKey(s);
+
+  // ── Siblings in db ────────────────────────────────────────
+  const siblings = db.filter((other, i) => i !== idx && getFamilyKey(other) === key);
+
+  // ── Waiting list cross-reference (surname match) ──────────
+  const mySurname = cleanName(s['Surname']).toLowerCase();
+  const wlMatches = (typeof WAITING_LIST_DATA !== 'undefined' ? WAITING_LIST_DATA : [])
+    .filter(c => cleanName(c.Surname).toLowerCase() === mySurname && c.Status === 'Waiting');
+
+  if (!siblings.length && !wlMatches.length) { wrap.innerHTML = ''; return; }
+
+  let html = '<div class="sec-hd" style="margin-top:14px;">Family</div>';
+
+  if (siblings.length) {
+    html += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">';
+    siblings.forEach(sib => {
+      const sibIdx   = db.indexOf(sib);
+      const isFemale = sib['Gender'] === 'Female';
+      const rel      = isFemale ? 'Sister' : 'Brother';
+      const icon     = isFemale ? '🧕' : '🧒';
+      const paid2    = computePaid(sib);
+      const owed     = paid2 - (parseFloat(sib['Fees Due']) || 0);
+      const feeHtml  = owed < 0
+        ? `<span class="chip chip-owe" style="font-size:10px;">Owes ${fmt(Math.abs(owed))}</span>`
+        : `<span class="chip chip-ok" style="font-size:10px;">Paid ✓</span>`;
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg2);border-radius:8px;cursor:pointer;" onclick="closeModal();setTimeout(()=>openModal(${sibIdx}),80)">
+        <span style="font-size:16px;">${icon}</span>
+        <div style="flex:1;">
+          <span style="font-weight:600;">${cleanName(sib['First Name'])} ${cleanName(sib['Surname'])}</span>
+          <span style="color:var(--blue);font-size:11px;margin-left:6px;">→ view record</span>
+        </div>
+        <span style="font-size:11px;color:var(--ink3);margin-right:4px;">${rel}</span>
+        <span class="chip chip-${sib['Class']}" style="font-size:10px;">${sib['Class']}</span>
+        ${feeHtml}
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  if (wlMatches.length) {
+    html += '<div style="margin-bottom:10px;">';
+    wlMatches.forEach(c => {
+      const pos  = c._queuePos || '?';
+      const bkt  = c.bracket   || '—';
+      const icon = c.Gender === 'Female' ? '🧕' : '🧒';
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;margin-bottom:6px;">
+        <span style="font-size:16px;">${icon}</span>
+        <div style="flex:1;">
+          <span style="font-weight:600;">${c.Firstname} ${c.Surname}</span>
+          <span style="font-size:11px;color:var(--ink3);margin-left:6px;">· Age ${c.preciseAge || c.calculatedAge} · ${bkt}</span>
+        </div>
+        <span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;">⏳ WL #${pos}</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  wrap.innerHTML = html;
+}
+
+// ── 6.C  Contact audit tool ───────────────────────────────────
+function openContactAudit() {
+  let overlay = document.getElementById('contact-audit-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'contact-audit-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:flex-end;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:680px;max-height:88vh;overflow-y:auto;padding:20px 16px 32px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <strong style="font-size:18px;">🔍 Data Audit</strong>
+          <button onclick="document.getElementById('contact-audit-overlay').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink3);">✕</button>
+        </div>
+        <div id="contact-audit-body">Running audit…</div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
+  }
+  overlay.style.display = 'flex';
+  _p6_runAudit();
+}
+
+function _p6_runAudit() {
+  const body = document.getElementById('contact-audit-body');
+  if (!body) return;
+
+  // ── Check 1: contact mismatch across siblings ─────────────
+  const families = groupByFamily(db);
+  const mismatches = [];
+  families.forEach(family => {
+    if (family.students.length < 2) return;
+    const fields = ['Mother Phone', 'Mother Email', 'Father Phone', 'Father Email'];
+    const diffs = [];
+    fields.forEach(f => {
+      const vals = [...new Set(family.students.map(({s}) => (s[f]||'').trim().toLowerCase()))];
+      if (vals.length > 1) diffs.push({ field: f, values: family.students.map(({s}) => ({ name: cleanName(s['First Name']), val: s[f] || '—' })) });
+    });
+    if (diffs.length) mismatches.push({ family, diffs });
+  });
+
+  // ── Check 2: missing contact info ────────────────────────
+  const missing = db.filter(s => {
+    const hasPhone = (s['Mother Phone']||'').trim() || (s['Father Phone']||'').trim();
+    const hasEmail = (s['Mother Email']||'').trim() || (s['Father Email']||'').trim();
+    return !hasPhone || !hasEmail;
+  });
+
+  let html = '';
+
+  // Mismatch section
+  html += `<div style="font-size:var(--font-md);font-weight:700;margin-bottom:8px;">📞 Contact Mismatches <span style="font-size:13px;font-weight:400;color:var(--ink3);">(${mismatches.length} families)</span></div>`;
+  if (!mismatches.length) {
+    html += '<p style="color:var(--green);font-size:13px;margin-bottom:16px;">✅ All family contact details are consistent.</p>';
+  } else {
+    mismatches.forEach(({ family, diffs }) => {
+      const rep = family.students[0].s;
+      const emails = [...new Set(family.students.flatMap(({s}) => [s['Mother Email'],s['Father Email']].filter(Boolean)))].join(',');
+      const names  = family.students.map(({s}) => cleanName(s['First Name'])).join(' & ');
+      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
+        <div style="font-weight:700;margin-bottom:8px;">${_familyIcon(family)} ${cleanName(rep['Surname'])} family · ${names}</div>`;
+      diffs.forEach(d => {
+        html += `<div style="font-size:12px;color:var(--ink2);margin-bottom:4px;"><strong>${d.field}:</strong> `;
+        html += d.values.map(v => `${v.name}: <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;">${v.val}</code>`).join(' &nbsp;|&nbsp; ');
+        html += '</div>';
+      });
+      html += `<div style="margin-top:8px;">
+        ${emails ? `<button class="btn btn-ghost btn-sm" onclick="_openMailto('mailto:${encodeURIComponent(emails)}?subject=${encodeURIComponent('Contact Details — EEIS Madrasah')}&body=${encodeURIComponent('Assalamu Alaikum,\n\nWe want to confirm the correct contact details we hold for your family.\n\nCould you please reply to confirm your up-to-date mobile number and email address?\n\nJazakAllah Khayran,\nEEIS Al-Kauthar Madrasah\nmadrasah@eeis.co.uk')}')">📧 Email to confirm</button>` : '<span style="font-size:11px;color:var(--ink3);">No email on file</span>'}
+      </div></div>`;
+    });
+  }
+
+  // Missing contact section
+  html += `<div style="font-size:var(--font-md);font-weight:700;margin:16px 0 8px;">⚠️ Missing Contact Info <span style="font-size:13px;font-weight:400;color:var(--ink3);">(${missing.length} students)</span></div>`;
+  if (!missing.length) {
+    html += '<p style="color:var(--green);font-size:13px;">✅ All students have at least one phone and one email.</p>';
+  } else {
+    html += `<div class="tbl-wrap"><div class="tbl-scroll"><table class="sticky-table" style="width:100%;">
+      <thead><tr><th class="sticky-col">Student</th><th>Class</th><th>Missing</th><th>Contact</th></tr></thead>
+      <tbody>`;
+    missing.forEach(s => {
+      const hasPhone = (s['Mother Phone']||'').trim() || (s['Father Phone']||'').trim();
+      const hasEmail = (s['Mother Email']||'').trim() || (s['Father Email']||'').trim();
+      const what = !hasPhone && !hasEmail ? '❌ Phone & Email' : !hasPhone ? '📵 No phone' : '📧 No email';
+      const phone = s['Mother Phone'] || s['Father Phone'] || '';
+      const waLink = phone ? `https://wa.me/${phone.replace(/\D/g,'').replace(/^0/,'44')}?text=${encodeURIComponent('Assalamu Alaikum, this is EEIS Madrasah. Could you please provide your email address so we can update our records? JazakAllah Khayran.')}` : '';
+      html += `<tr onclick="openModal(${db.indexOf(s)})" style="cursor:pointer;">
+        <td class="sticky-col"><strong>${cleanName(s['First Name'])} ${cleanName(s['Surname'])}</strong></td>
+        <td><span class="chip chip-${s['Class']}">${s['Class']}</span></td>
+        <td style="font-size:12px;color:var(--red);">${what}</td>
+        <td style="white-space:nowrap;">
+          ${waLink ? `<a href="${waLink}" target="_blank" class="btn-whatsapp" style="font-size:11px;">💬 WA</a>` : '<span style="font-size:11px;color:var(--ink3);">No phone</span>'}
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table></div></div>';
+  }
+
+  body.innerHTML = html;
+}
+
+// ── 6.E  Calendar upgrades ────────────────────────────────────
+(function() {
+  const _p6_origRC = typeof renderCalendar === 'function' ? renderCalendar : null;
+  if (!_p6_origRC) return;
+  renderCalendar = function() {
+    _p6_origRC.apply(this, arguments);
+    try {
+      // 1. Auto-scroll to current week
+      const strip = document.getElementById('week-strip');
+      if (strip) {
+        const curr = strip.querySelector('.current-week');
+        if (curr) setTimeout(() => curr.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }), 100);
+      }
+      // 2. Add August 2026 if not already rendered
+      // (handled by overriding the months array below)
+    } catch(e) {}
+  };
+})();
+
+// Override renderCalendar months array to include August 2026
+(function() {
+  const _p6_origRC2 = renderCalendar;
+  renderCalendar = function() {
+    // Temporarily patch the months inside renderCalendar by overriding
+    // the cal-grid rendering directly after the original call.
+    _p6_origRC2.apply(this, arguments);
+    // If August 2026 not in grid, add it
+    const grid = document.getElementById('cal-grid');
+    if (!grid) return;
+    const hasAug = grid.querySelector('[data-month="2026-8"]');
+    if (hasAug) return;
+    // Build August 2026 month block
+    const y = 2026, m = 7; // month index 7 = August
+    const firstDay = new Date(y, m, 1).getDay(); // 0=Sun
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    let cells = '<div class="day-name">Su</div><div class="day-name">Mo</div><div class="day-name">Tu</div><div class="day-name">We</div><div class="day-name">Th</div><div class="day-name">Fr</div><div class="day-name">Sa</div>';
+    for (let i = 0; i < firstDay; i++) cells += '<div></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = `${y}-08-${String(d).padStart(2,'0')}`;
+      const isToday = ds === todayStr;
+      const evType = (typeof getCalEventType === 'function') ? getCalEventType(ds) : null;
+      const evData = (TERM_DATES.events||[]).find(e => e.date === ds);
+      cells += `<div class="cal-day${evType ? ' '+evType : ''}${isToday ? ' today' : ''}">
+        <div class="day-num">${d}</div>
+        ${evData ? `<div class="day-ev">${evData.label}</div>` : ''}
+      </div>`;
+    }
+    const block = document.createElement('div');
+    block.className = 'cal-month';
+    block.setAttribute('data-month', '2026-8');
+    block.innerHTML = `<div class="cal-month-label">August 2026</div><div class="cal-month-grid">${cells}</div>`;
+    grid.appendChild(block);
+  };
+})();
+
+function scrollWeekStrip(dir) {
+  const strip = document.getElementById('week-strip');
+  if (!strip) return;
+  const chipW = 60; // approx width of each chip + gap
+  strip.scrollBy({ left: dir * chipW * 4, behavior: 'smooth' });
+}
+
+// ── 6.F  WhatsApp comparison tool ────────────────────────────
+function openWAComparison() {
+  let overlay = document.getElementById('wa-compare-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'wa-compare-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:flex-end;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:680px;max-height:88vh;overflow-y:auto;padding:20px 16px 32px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <strong style="font-size:18px;">📲 WhatsApp Group Checker</strong>
+          <button onclick="document.getElementById('wa-compare-overlay').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink3);">✕</button>
+        </div>
+        <p style="font-size:13px;color:var(--ink2);margin-bottom:10px;">
+          Paste phone numbers from the WhatsApp group export (one per line or comma-separated). We'll cross-reference them against the student database.
+        </p>
+        <textarea id="wa-paste-input" style="width:100%;height:100px;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:13px;font-family:monospace;resize:vertical;box-sizing:border-box;" placeholder="07700 900123&#10;07700 900456, 07700 900789&#10;+447700900123"></textarea>
+        <button class="btn btn-dark" style="width:100%;margin-top:10px;padding:12px;" onclick="_p6_runWACompare()">🔍 Compare</button>
+        <div id="wa-compare-results" style="margin-top:16px;"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
+  }
+  overlay.style.display = 'flex';
+  document.getElementById('wa-compare-results').innerHTML = '';
+}
+
+function _p6_normalisePhone(raw) {
+  let n = String(raw).replace(/\D/g, '');
+  if (n.startsWith('44')) n = '0' + n.slice(2);
+  if (n.startsWith('0044')) n = '0' + n.slice(4);
+  return n;
+}
+
+function _p6_runWACompare() {
+  const raw = (document.getElementById('wa-paste-input')?.value || '');
+  const groupNums = raw.split(/[\n,]+/).map(x => _p6_normalisePhone(x)).filter(x => x.length >= 10);
+  if (!groupNums.length) { showToast('Paste some numbers first', 'red'); return; }
+  const groupSet = new Set(groupNums);
+
+  // Build database number → student map
+  const dbMap = new Map();
+  db.forEach(s => {
+    [s['Mother Phone'], s['Father Phone']].forEach(ph => {
+      if (!ph) return;
+      const n = _p6_normalisePhone(ph);
+      if (!dbMap.has(n)) dbMap.set(n, []);
+      dbMap.get(n).push(s);
+    });
+  });
+  const dbNums = new Set(dbMap.keys());
+
+  const inGroupNotDb = [...groupSet].filter(n => !dbNums.has(n));
+  const inDbNotGroup = [...dbNums].filter(n => !groupSet.has(n));
+
+  let html = '';
+
+  if (inGroupNotDb.length) {
+    html += `<div style="font-weight:700;margin-bottom:8px;">❓ In group, NOT in database (${inGroupNotDb.length})</div>`;
+    inGroupNotDb.forEach(n => {
+      const waLink = `https://wa.me/44${n.slice(1)}?text=${encodeURIComponent('Assalamu Alaikum, this is EEIS Al-Kauthar Madrasah. We are updating our WhatsApp group. If your child is no longer enrolled with us, please let us know so we can keep our records accurate. JazakAllah Khayran.')}`;
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fef2f2;border-radius:8px;margin-bottom:6px;">
+        <span style="flex:1;font-family:monospace;font-size:13px;">${n}</span>
+        <a href="${waLink}" target="_blank" class="btn-whatsapp" style="font-size:11px;">💬 Send message</a>
+      </div>`;
+    });
+  }
+
+  if (inDbNotGroup.length) {
+    html += `<div style="font-weight:700;margin:12px 0 8px;">📲 In database, NOT in group (${inDbNotGroup.length})</div>`;
+    inDbNotGroup.forEach(n => {
+      const students = dbMap.get(n) || [];
+      const names = students.map(s => cleanName(s['First Name'])+' '+cleanName(s['Surname'])).join(', ');
+      const parentName = students[0] ? (students[0]['Mother Name'] || students[0]['Father Name'] || 'Parent') : 'Parent';
+      const inviteLink = `https://wa.me/44${n.slice(1)}?text=${encodeURIComponent('Assalamu Alaikum '+parentName+', we have updated our EEIS Madrasah WhatsApp group. Please use this link to join: [paste invite link here]. JazakAllah Khayran.')}`;
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f0fdf4;border-radius:8px;margin-bottom:6px;">
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;">${names}</div>
+          <div style="font-family:monospace;font-size:11px;color:var(--ink3);">${n}</div>
+        </div>
+        <a href="${inviteLink}" target="_blank" class="btn-whatsapp" style="font-size:11px;">📲 Invite</a>
+      </div>`;
+    });
+  }
+
+  const matchCount = [...groupSet].filter(n => dbNums.has(n)).length;
+  html += `<div style="margin-top:12px;font-size:12px;color:var(--ink3);text-align:center;">✓ ${matchCount} numbers matched · ${inGroupNotDb.length} unknown · ${inDbNotGroup.length} not in group</div>`;
+
+  document.getElementById('wa-compare-results').innerHTML = html || '<p style="color:var(--green);">✅ All numbers matched!</p>';
+}
+
+// ── 6.x  Audit & WA buttons: inject into Dashboard (Super Admin) ──
+(function() {
+  const _p6_origEnter = enterApp;
+  enterApp = function() {
+    _p6_origEnter.apply(this, arguments);
+    setTimeout(() => {
+      try { _p6_injectAuditButtons(); } catch(e) {}
+    }, 300);
+  };
+})();
+
+function _p6_injectAuditButtons() {
+  if (document.getElementById('p6-audit-btn')) return; // already injected
+  const role = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.role : '';
+  if (!role || role === 'Viewer') return; // viewers don't get audit tools
+  const header = document.querySelector('#panel-dashboard .sort-bar') ||
+                 document.querySelector('#panel-dashboard .debt-sort-bar') ||
+                 document.querySelector('#debt-view-toggle')?.parentElement;
+  if (!header) return;
+  const auditBtn = document.createElement('button');
+  auditBtn.id = 'p6-audit-btn';
+  auditBtn.className = 'btn btn-ghost btn-sm';
+  auditBtn.style.cssText = 'font-size:11px;margin-left:auto;';
+  auditBtn.textContent = '🔍 Audit';
+  auditBtn.onclick = openContactAudit;
+  const waBtn = document.createElement('button');
+  waBtn.id = 'p6-wa-btn';
+  waBtn.className = 'btn btn-ghost btn-sm';
+  waBtn.style.cssText = 'font-size:11px;';
+  waBtn.textContent = '📲 WA Check';
+  waBtn.onclick = openWAComparison;
+  header.appendChild(auditBtn);
+  header.appendChild(waBtn);
+}
+
+// ── 6.x  Post-init re-inject audit buttons on render ─────────
+(function() {
+  const _p6_origRD = renderDashboard;
+  renderDashboard = function() {
+    _p6_origRD.apply(this, arguments);
+    setTimeout(() => { try { _p6_injectAuditButtons(); } catch(e) {} }, 200);
   };
 })();
 
