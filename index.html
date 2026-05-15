@@ -2306,7 +2306,16 @@ input, select, textarea {
 
     <div class="form-sec"><div class="form-sec-title">Health & Notes</div>
       <div class="edit-form"><div class="form-grid">
-        <div class="form-field"><label>Allergies / Medical</label><input id="a-allergy" type="text"></div>
+        <div class="form-field full"><label>Allergies / Medical</label><input id="a-allergy" type="text"></div>
+        <div class="form-field full" style="margin-top:-4px;">
+          <label style="margin-bottom:5px;display:block;">Allergy Severity</label>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:14px;">
+            <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;"><input type="radio" name="a-allergy-severity" value=""> Not specified</label>
+            <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;"><input type="radio" name="a-allergy-severity" value="critical"> 🔴 Severe/Critical</label>
+            <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;"><input type="radio" name="a-allergy-severity" value="moderate"> 🟡 Moderate</label>
+            <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;"><input type="radio" name="a-allergy-severity" value="mild"> 🔵 Mild</label>
+          </div>
+        </div>
         <div class="form-field"><label>Comments</label><textarea id="a-comments"></textarea></div>
       </div></div>
     </div>
@@ -2379,6 +2388,7 @@ input, select, textarea {
           </select>
         </div>
         <div class="form-field"><label>Rate per Session (£)</label><input id="sf-rate" type="number" placeholder="e.g. 55" step="0.01" style="font-size:16px;"></div>
+        <div class="form-field"><label>Start Date</label><input id="sf-start-date" type="date" style="font-size:16px;"></div>
       </div>
       <div class="form-grid" style="margin-top:10px;">
         <div class="form-field full"><label>Home Address</label><input id="sf-address" type="text" placeholder="Full home address" style="font-size:16px;"></div>
@@ -2506,6 +2516,9 @@ input, select, textarea {
     </select>
     <button class="copy-wa-btn" onclick="copyMedicalForWhatsApp()">
       💬 Copy for WhatsApp
+    </button>
+    <button class="copy-wa-btn" onclick="openNutReminder()" style="background:var(--red-lt);color:var(--red);border-color:#fca5a5;">
+      🥜 Nut Reminder
     </button>
   </div>
 
@@ -2883,7 +2896,16 @@ input, select, textarea {
         </div>
         <div class="sec-hd">Health & Notes</div>
         <div class="form-grid">
-          <div class="form-field"><label>Allergies</label><input id="e-allergy" type="text"></div>
+          <div class="form-field full"><label>Allergies</label><input id="e-allergy" type="text"></div>
+          <div class="form-field full" style="margin-top:-4px;">
+            <label style="margin-bottom:5px;display:block;">Allergy Severity</label>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:14px;">
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;"><input type="radio" name="e-allergy-severity" value=""> Not specified</label>
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;"><input type="radio" name="e-allergy-severity" value="critical"> 🔴 Severe/Critical</label>
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;"><input type="radio" name="e-allergy-severity" value="moderate"> 🟡 Moderate</label>
+              <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;"><input type="radio" name="e-allergy-severity" value="mild"> 🔵 Mild</label>
+            </div>
+          </div>
           <div class="form-field"><label>Comments</label><textarea id="e-comments"></textarea></div>
         </div>
       </div>
@@ -3806,7 +3828,7 @@ function parseStudentRows(raw) {
       'Mother Name':String(row[col['Mother Name']]||''), 'Mother Phone':String(row[col['Mother Phone']]||''), 'Mother Email':String(row[col['Mother Email']]||''),
       'Father Name':String(row[col['Father Name']]||''), 'Father Phone':String(row[col['Father Phone']]||''), 'Father Email':String(row[col['Father Email']]||''),
       'Road':String(row[col['Road']]||''), 'Town':String(row[col['Town']]||''), 'County':String(row[col['County']]||''), 'Postcode':String(row[col['Postcode']]||''),
-      'Allergies':String(row[col['Allergies']]||''), 'Comments':String(row[col['Comments']]||''),
+      'Allergies':String(row[col['Allergies']]||''), 'Allergy Severity':String(row[col['Allergy Severity']]||''), 'Comments':String(row[col['Comments']]||''),
       instalments
     }));
   }
@@ -3853,7 +3875,7 @@ function parseUsersRows(raw) {
 
 // ── Serialise for Sheets ──
 function studentsToRows() {
-  const headers = ['First Name','Surname','DOB','Age','Gender','Class','Fees Due','Fees Paid','Fees Outstanding','Mother Name','Mother Phone','Mother Email','Father Name','Father Phone','Father Email','Road','Town','County','Postcode','Allergies','Comments','Payment History'];
+  const headers = ['First Name','Surname','DOB','Age','Gender','Class','Fees Due','Fees Paid','Fees Outstanding','Mother Name','Mother Phone','Mother Email','Father Name','Father Phone','Father Email','Road','Town','County','Postcode','Allergies','Allergy Severity','Comments','Payment History'];
   const rows = db.map((s, dbIdx) => {
     if (!s) { console.warn('studentsToRows: null student at index', dbIdx); return null; }
     const insts = Array.isArray(s.instalments) ? s.instalments.filter(Boolean) : [];
@@ -3862,7 +3884,7 @@ function studentsToRows() {
     const paid = instPaid > 0 ? instPaid : (parseFloat(s['Fees Paid'])||0);
     const owed = paid - (parseFloat(s['Fees Due'])||0);
     const hist = insts.map(i=>`${i.date||''}: £${i.amount||0} (${i.method||''}${i.ref?' – '+i.ref:''})`).join(' | ');
-    return [cleanName(s['First Name']),cleanName(s['Surname']),s['DOB']||'',s['Age']||'',s['Gender']||'',s['Class']||'',s['Fees Due']||'',paid.toFixed(2),owed.toFixed(2),s['Mother Name']||'',s['Mother Phone']||'',s['Mother Email']||'',s['Father Name']||'',s['Father Phone']||'',s['Father Email']||'',s['Road']||'',s['Town']||'',s['County']||'',s['Postcode']||'',s['Allergies']||'',s['Comments']||'',hist];
+    return [cleanName(s['First Name']),cleanName(s['Surname']),s['DOB']||'',s['Age']||'',s['Gender']||'',s['Class']||'',s['Fees Due']||'',paid.toFixed(2),owed.toFixed(2),s['Mother Name']||'',s['Mother Phone']||'',s['Mother Email']||'',s['Father Name']||'',s['Father Phone']||'',s['Father Email']||'',s['Road']||'',s['Town']||'',s['County']||'',s['Postcode']||'',s['Allergies']||'',s['Allergy Severity']||'',s['Comments']||'',hist];
   }).filter(Boolean);
   return [headers, ...rows];
 }
@@ -6892,7 +6914,7 @@ renderStaffGrid = function() {
 
   function section(title, members, startIdx) {
     if (!members.length) return '';
-    return `<div style="grid-column:1/-1" class="staff-section-title">${title}<span style="font-size:12px;color:var(--ink3);font-weight:400">${members.length} member${members.length>1?'s':''}</span></div>` +
+    return `<div style="grid-column:1/-1" class="staff-section-title">${title}<span style="font-size:14px;color:var(--ink2);font-weight:600">${members.length} member${members.length>1?'s':''}</span></div>` +
       members.map((s, i) => buildCard(s, startIdx + i)).join('');
   }
 
@@ -8084,14 +8106,18 @@ function _p6_renderSiblings(idx) {
       const feeHtml  = owed < 0
         ? `<span class="chip chip-owe" style="font-size:10px;">Owes ${fmt(Math.abs(owed))}</span>`
         : `<span class="chip chip-ok" style="font-size:10px;">Paid ✓</span>`;
+      const sibDOB = sib['DOB'] || '';
+      const sibAge = sibDOB ? (function(d){const dt=new Date(d);if(isNaN(dt))return'';const now=new Date();let a=now.getFullYear()-dt.getFullYear();if(now.getMonth()<dt.getMonth()||(now.getMonth()===dt.getMonth()&&now.getDate()<dt.getDate()))a--;return a>0?a:'';})(sibDOB) : '';
+      const sibAgeHtml = sibAge ? `<span style="font-size:12px;color:var(--ink3);background:var(--bg2);border:1px solid var(--border);padding:1px 6px;border-radius:8px;">Age ${sibAge}</span>` : '';
       html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg2);border-radius:8px;cursor:pointer;" onclick="closeModal();setTimeout(()=>openModal(${sibIdx}),80)">
         <span style="font-size:16px;">${icon}</span>
         <div style="flex:1;">
-          <span style="font-weight:600;">${cleanName(sib['First Name'])} ${cleanName(sib['Surname'])}</span>
-          <span style="color:var(--blue);font-size:11px;margin-left:6px;">→ view record</span>
+          <span style="font-weight:700;font-size:13px;">${cleanName(sib['First Name'])} ${cleanName(sib['Surname'])}</span>
+          ${sibAgeHtml}
+          <span style="color:var(--blue);font-size:11px;margin-left:4px;">→ view</span>
         </div>
-        <span style="font-size:11px;color:var(--ink3);margin-right:4px;">${rel}</span>
-        <span class="chip chip-${sib['Class']}" style="font-size:10px;">${sib['Class']}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--blue);margin-right:4px;">${rel}</span>
+        <span class="chip chip-${sib['Class']}" style="font-size:11px;">${sib['Class']}</span>
         ${feeHtml}
       </div>`;
     });
@@ -8107,10 +8133,10 @@ function _p6_renderSiblings(idx) {
       html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:8px;margin-bottom:6px;">
         <span style="font-size:16px;">${icon}</span>
         <div style="flex:1;">
-          <span style="font-weight:600;">${c.Firstname} ${c.Surname}</span>
-          <span style="font-size:11px;color:var(--ink3);margin-left:6px;">· Age ${c.preciseAge || c.calculatedAge} · ${bkt}</span>
+          <span style="font-weight:700;font-size:13px;">${c.Firstname} ${c.Surname}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--ink2);margin-left:6px;">Age ${c.preciseAge || c.calculatedAge} · ${bkt}</span>
         </div>
-        <span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;">⏳ WL #${pos}</span>
+        <span style="background:#f59e0b;color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:10px;">⏳ WL #${pos}</span>
       </div>`;
     });
     html += '</div>';
@@ -9216,6 +9242,440 @@ Please see the full updated schedule below 👇
 ${calText}`;
 }
 
+</script>
+
+<script>
+// ══════════ PHASE 7 (May 2026) — 7B · 7C · 7D · 7E · 7F · 7I ══════════
+(function() {
+  'use strict';
+
+  // ── Shared helper: ordinal suffix ──────────────────────────────────────
+  function _p7ord(n) {
+    const s = ['th','st','nd','rd'];
+    const v = n % 100;
+    return n + (s[(v-20)%10] || s[v] || s[0]);
+  }
+
+  function _p7fmtDate(iso) {
+    const d = new Date(iso + 'T12:00:00');
+    return 'Saturday ' + _p7ord(d.getDate()) + ' ' +
+      d.toLocaleString('en-GB',{month:'long'}) + ' ' + d.getFullYear();
+  }
+
+  // ── 7B: Improved modal meta line + compact parent contacts ─────────────
+  const _p7_origOpenModal = openModal;
+  openModal = function(idx) {
+    _p7_origOpenModal.apply(this, arguments);
+    try { _p7_patchModal(idx); } catch(e) { console.warn('[p7 modal]', e); }
+  };
+
+  function _p7_patchModal(idx) {
+    const s = db[idx];
+    if (!s) return;
+
+    // 1. Better meta line
+    const paid2 = computePaid(s);
+    const owed  = paid2 - (parseFloat(s['Fees Due']) || 0);
+    const feeChip = owed < 0
+      ? `<span class="chip chip-owe">Owes ${fmt(Math.abs(owed))}</span>`
+      : owed > 0
+      ? `<span class="chip chip-over">Overpaid ${fmt(owed)}</span>`
+      : `<span class="chip chip-ok">Fully Paid</span>`;
+    const _dur = (function(raw) {
+      if (!raw) return '';
+      const st = new Date(raw);
+      if (isNaN(st)) return '';
+      const n = new Date();
+      let y = n.getFullYear()-st.getFullYear(), m = n.getMonth()-st.getMonth();
+      if (n.getDate() < st.getDate()) m--;
+      if (m < 0) { y--; m += 12; }
+      if (y===0 && m===0) return '< 1 month';
+      return (y?y+'y ':'')+( m?m+'m':'');
+    })(s['Start Date']);
+    const durChip = _dur
+      ? `<span style="font-size:11px;color:var(--ink3);background:var(--bg2);padding:2px 7px;border-radius:10px;">📅 ${_dur} with us</span>`
+      : '';
+    const age = s['Age'] ? Math.floor(parseFloat(s['Age'])) : '';
+    const metaEl = document.getElementById('m-meta');
+    if (metaEl) {
+      metaEl.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px;';
+      metaEl.innerHTML =
+        `<span class="chip chip-${s['Class']}">${s['Class']}</span>` +
+        (s['Gender'] ? `<span style="font-size:15px;font-weight:700;">${s['Gender']}</span>` : '') +
+        (age ? `<span style="font-size:15px;font-weight:700;">Age ${age}</span>` : '') +
+        (s['DOB'] ? `<span style="font-size:13px;color:var(--ink3);">b. ${s['DOB']}</span>` : '') +
+        feeChip + durChip;
+    }
+
+    // 2. Compact parent contact blocks
+    const mp = document.getElementById('mp-info');
+    if (mp) {
+      mp.querySelectorAll('.sec-hd').forEach(hd => {
+        const isM = hd.textContent.trim() === 'Mother';
+        const isF = hd.textContent.trim() === 'Father';
+        if (!isM && !isF) return;
+        const grid = hd.nextElementSibling;
+        if (!grid || !grid.classList.contains('info-grid')) return;
+        const name  = isM ? s['Mother Name']  : s['Father Name'];
+        const phone = isM ? s['Mother Phone'] : s['Father Phone'];
+        const email = isM ? s['Mother Email'] : s['Father Email'];
+        const phHtml = phone ? _contactPhoneHTML(name||'Parent', phone) : '<span style="color:var(--ink3);font-size:13px;">No phone</span>';
+        const emHtml = email ? _contactEmailHTML(email) : '<span style="color:var(--ink3);font-size:13px;">No email</span>';
+        const block = document.createElement('div');
+        block.style.cssText = 'background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:10px;';
+        block.innerHTML =
+          `<div style="font-size:14px;font-weight:700;margin-bottom:5px;">${name||'—'}</div>` +
+          `<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">${phHtml}${emHtml}</div>`;
+        grid.replaceWith(block);
+      });
+    }
+
+    // 3. Fee reminder buttons (replace static SumUp link)
+    const payEl = document.getElementById('mi-payment-link');
+    if (payEl) {
+      const owesStr = owed < 0 ? ` · Owes ${fmt(Math.abs(owed))}` : '';
+      payEl.innerHTML =
+        `<div style="font-size:12px;font-weight:600;color:var(--green);">💳 Online Payment${owesStr}</div>` +
+        `<div style="display:flex;gap:6px;flex-wrap:wrap;">` +
+          `<button onclick="_p7feeWA(${idx},'mother')" style="font-size:12px;color:#fff;font-weight:600;padding:5px 11px;background:var(--blue);border-radius:6px;border:none;cursor:pointer;">💬 Mother</button>` +
+          `<button onclick="_p7feeWA(${idx},'father')" style="font-size:12px;color:#fff;font-weight:600;padding:5px 11px;background:var(--blue);border-radius:6px;border:none;cursor:pointer;">💬 Father</button>` +
+          `<button onclick="_p7feeWA(${idx},'both')" style="font-size:12px;color:#fff;font-weight:600;padding:5px 11px;background:var(--blue);border-radius:6px;border:none;cursor:pointer;">💬 Both</button>` +
+          `<a href="https://eeis.sumupstore.com/" target="_blank" style="font-size:12px;color:var(--ink3);padding:5px 10px;background:#fff;border-radius:6px;border:1px solid var(--border);text-decoration:none;">Portal →</a>` +
+        `</div>`;
+    }
+  }
+
+  // ── 7C: Fee reminder WhatsApp sender ──────────────────────────────────
+  window._p7feeWA = function(idx, parentType) {
+    const s = db[idx];
+    if (!s) return;
+    const key = getFamilyKey(s);
+    const family = db.filter(fs => getFamilyKey(fs) === key);
+    const lines = [];
+    let total = 0;
+    family.forEach(fs => {
+      const p = computePaid(fs);
+      const o = p - (parseFloat(fs['Fees Due'])||0);
+      if (o < 0) {
+        lines.push(`• ${cleanName(fs['First Name'])} ${cleanName(fs['Surname'])} (Class ${fs['Class']}): ${fmt(Math.abs(o))} outstanding`);
+        total += Math.abs(o);
+      }
+    });
+    if (!lines.length) { showToast('No outstanding fees 👍', 'green'); return; }
+
+    const clean = ph => ph ? ph.replace(/\s+/g,'').replace(/^\+44/,'44').replace(/^0/,'44') : '';
+    const buildMsg = name =>
+      `Assalamu Alaikum ${name||'Dear Parent'},\n\nThis is a kind reminder that the following fees are outstanding for your child(ren) at EEIS Al-Kauthar Saturday Madrasah:\n\n${lines.join('\n')}\n\nTotal outstanding: ${fmt(total)}\n\nYou can pay online at: https://eeis.sumupstore.com/\nAlternatively, you are welcome to pay in person at the Madrasah by cash or card.\n\nJazakAllah Khayran,\nEEIS Al-Kauthar Madrasah`;
+
+    const openWA = (name, ph) => {
+      const num = clean(ph);
+      if (!num) { showToast('No phone number for ' + (name||'parent'), 'red'); return; }
+      window.open(`https://wa.me/${num}?text=${encodeURIComponent(buildMsg(name))}`, '_blank');
+    };
+
+    if (parentType === 'both') {
+      openWA(s['Mother Name'], s['Mother Phone']);
+      if (s['Father Phone']) setTimeout(() => openWA(s['Father Name'], s['Father Phone']), 600);
+    } else if (parentType === 'mother') {
+      openWA(s['Mother Name'], s['Mother Phone']);
+    } else {
+      openWA(s['Father Name'], s['Father Phone']);
+    }
+  };
+
+  // ── 7D: Staff enhancements ─────────────────────────────────────────────
+
+  // Larger fonts in compact card + 🎓 for headteacher
+  const _p7_origCompactCard = _p6_renderCompactCard;
+  _p6_renderCompactCard = function(card, s, idx) {
+    _p7_origCompactCard.apply(this, arguments);
+    // Bump name font size
+    const nameSpan = card.querySelector('span[style*="font-weight:700"]');
+    if (nameSpan) nameSpan.style.fontSize = '16px';
+    // Replace crown with mortarboard for head
+    if (s.isHead) card.innerHTML = card.innerHTML.replace(/>👑</g, '>🎓<');
+    // Class chip slightly larger
+    const chip = card.querySelector('.chip');
+    if (chip) { chip.style.fontSize = '12px'; chip.style.padding = '2px 8px'; }
+  };
+
+  // Fix detail overlay alignment (currently flex-end, needs flex-start)
+  const _p7_origStaffDetail = _p6_openStaffDetail;
+  _p6_openStaffDetail = function(idx) {
+    _p7_origStaffDetail.apply(this, arguments);
+    const ov = document.getElementById('p6-staff-detail-overlay');
+    if (ov) { ov.style.alignItems = 'flex-start'; ov.style.paddingTop = '60px'; }
+    // Add start date to info tab if available
+    const sDb = (typeof staffDb !== 'undefined') ? staffDb : [];
+    const st = sDb[idx];
+    if (!st || !st.startDate) return;
+    const infoPanel = document.getElementById('p6-sd-info');
+    if (!infoPanel || infoPanel.querySelector('.p7-since')) return;
+    const dur = (function(raw) {
+      if (!raw) return '';
+      const dt = new Date(raw);
+      if (isNaN(dt)) return '';
+      const n = new Date();
+      let y = n.getFullYear()-dt.getFullYear(), m = n.getMonth()-dt.getMonth();
+      if (n.getDate() < dt.getDate()) m--;
+      if (m < 0) { y--; m += 12; }
+      return (y?y+'y ':'')+( m?m+'m':'');
+    })(st.startDate);
+    const d = document.createElement('div');
+    d.className = 'p7-since';
+    d.style.cssText = 'font-size:12px;color:var(--ink3);margin-top:6px;margin-bottom:6px;';
+    d.textContent = '📅 With us since ' + st.startDate + (dur ? ' (' + dur + ')' : '');
+    infoPanel.insertBefore(d, infoPanel.firstChild);
+  };
+
+  // Persist startDate when saving staff
+  const _p7_origSaveStaff = saveStaffMember;
+  saveStaffMember = function() {
+    _p7_origSaveStaff.apply(this, arguments);
+    const el = document.getElementById('sf-start-date');
+    if (!el || !el.value) return;
+    const sDb = (typeof staffDb !== 'undefined') ? staffDb : [];
+    const idx = (typeof editingStaffIdx !== 'undefined') ? editingStaffIdx : -1;
+    if (idx >= 0 && sDb[idx]) {
+      sDb[idx].startDate = el.value;
+      if (typeof saveStaffDb === 'function') saveStaffDb();
+      if (typeof saveStaffCache === 'function') saveStaffCache();
+    }
+  };
+
+  // Populate startDate in edit form
+  const _p7_origOpenEditStaff = openEditStaff;
+  openEditStaff = function(idx) {
+    _p7_origOpenEditStaff.apply(this, arguments);
+    const el = document.getElementById('sf-start-date');
+    const sDb = (typeof staffDb !== 'undefined') ? staffDb : [];
+    if (el && sDb[idx]) el.value = sDb[idx].startDate || '';
+  };
+
+  // Payroll banner: add max-if-all-present stat
+  const _p7_origPayrollBanner = renderPayrollBanner;
+  renderPayrollBanner = function() {
+    _p7_origPayrollBanner.apply(this, arguments);
+    // Avoid duplicates
+    if (document.getElementById('p7-max-pay')) return;
+    const now = new Date();
+    const year = now.getFullYear(), month = now.getMonth();
+    // Count Saturdays in current month
+    let sats = 0;
+    for (let d = new Date(year, month, 1); d.getMonth() === month; d.setDate(d.getDate()+1)) {
+      if (d.getDay() === 6) sats++;
+    }
+    const sDb = (typeof staffDb !== 'undefined') ? staffDb : [];
+    const maxPay = sDb.reduce((t, s) => t + (!s.isVolunteer && s.ratePerSession ? s.ratePerSession * sats : 0), 0);
+    if (!maxPay) return;
+    const ref = document.getElementById('pr-payroll')?.closest('.pr-stat') || document.querySelector('.pr-stat:last-child');
+    if (!ref) return;
+    const el = document.createElement('div');
+    el.id = 'p7-max-pay';
+    el.className = 'pr-stat';
+    el.innerHTML = `<label>Max (all present)</label><div class="pr-val" style="color:var(--ink3);">£${maxPay.toLocaleString('en-GB',{maximumFractionDigits:0})}</div>`;
+    ref.after(el);
+  };
+
+  // ── 7E: Nut allergy reminder ───────────────────────────────────────────
+  window.openNutReminder = function() {
+    let ov = document.getElementById('p7-nut-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'p7-nut-overlay';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9500;display:flex;align-items:flex-end;justify-content:center;';
+      document.body.appendChild(ov);
+      ov.addEventListener('click', e => { if (e.target===ov) ov.style.display='none'; });
+    }
+    const nuts = (db||[]).filter(s => /nut|peanut|cashew|almond|walnut|hazel|pistachio/i.test(s['Allergies']||''));
+    const nutsHtml = nuts.length
+      ? nuts.map(s=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #fee2e2;"><strong>${cleanName(s['First Name'])} ${cleanName(s['Surname'])}</strong><span style="color:var(--ink3);"> · ${s['Class']} · </span><span style="color:var(--red);">${s['Allergies']}</span></div>`).join('')
+      : '<div style="font-size:12px;color:var(--ink3);">None recorded</div>';
+
+    const defaultMsg = `Assalamu Alaikum Dear Parents,
+
+We wish to remind you that we have students in our Madrasah with severe nut allergies.
+
+We kindly request that you do NOT include nuts or nut products in your child's snack for break time. This includes peanuts, cashews, almonds, walnuts, pistachios and any nut-based products (e.g. Nutella, peanut butter, cereal bars containing nuts).
+
+Please check packaging carefully and when in doubt, please leave it out.
+
+JazakAllah Khayran for your cooperation in keeping all our students safe.
+
+EEIS Al-Kauthar Madrasah
+madrasah@eeis.co.uk`;
+
+    const emails = [...new Set((db||[]).flatMap(s=>[s['Mother Email'],s['Father Email']]).filter(e=>e&&String(e).includes('@')))];
+    ov._nutEmails = emails;
+
+    ov.innerHTML = `
+      <div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;padding:20px 16px 32px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <strong style="font-size:18px;">🥜 Nut Allergy Reminder</strong>
+          <button onclick="document.getElementById('p7-nut-overlay').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink3);">✕</button>
+        </div>
+        <div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+          <div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">🔒 Staff Reference Only — NOT sent to parents</div>
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:6px;">${nuts.length} student${nuts.length!==1?'s':''} with nut allergies:</div>
+          ${nutsHtml}
+        </div>
+        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px;">📧 Message (edit before sending):</div>
+        <textarea id="p7-nut-msg" style="width:100%;min-height:200px;font-family:'DM Sans',sans-serif;font-size:13px;padding:10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;line-height:1.5;">${defaultMsg}</textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+          <button onclick="_p7nutEmail()" style="flex:1;min-width:140px;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">📧 Email all parents (BCC)</button>
+          <button onclick="_p7nutWA()" style="flex:1;min-width:140px;padding:11px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">💬 Copy for WhatsApp</button>
+        </div>
+      </div>`;
+    ov.style.display = 'flex';
+  };
+
+  window._p7nutEmail = function() {
+    const msg  = document.getElementById('p7-nut-msg')?.value || '';
+    const ov   = document.getElementById('p7-nut-overlay');
+    const bcc  = (ov?._nutEmails || []).join(',');
+    const subj = encodeURIComponent('Important: Nut Allergy Reminder — EEIS Al-Kauthar Madrasah');
+    window.open(`mailto:madrasah@eeis.co.uk?bcc=${encodeURIComponent(bcc)}&subject=${subj}&body=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  window._p7nutWA = function() {
+    const msg = document.getElementById('p7-nut-msg')?.value || '';
+    navigator.clipboard.writeText(msg)
+      .then(() => showToast('📋 Copied — paste in WhatsApp group', 'green'))
+      .catch(() => showToast('Copy manually from the text area', 'red'));
+  };
+
+  // ── 7F: Allergy severity explicit field ────────────────────────────────
+  const _p7_origPopForm = populateEditForm;
+  populateEditForm = function(s) {
+    _p7_origPopForm.apply(this, arguments);
+    // Set severity radio (edit form)
+    const sev = s['Allergy Severity'] || '';
+    document.querySelectorAll('input[name="e-allergy-severity"]').forEach(r => { r.checked = r.value === sev; });
+    // Clear add-form severity
+    document.querySelectorAll('input[name="a-allergy-severity"]').forEach(r => { r.checked = false; });
+    // DOB fix: normalize to YYYY-MM-DD for date input
+    const dobEl = document.getElementById('e-dob');
+    if (dobEl) {
+      const raw = s['DOB'] || '';
+      const iso = _p7normDateISO(raw);
+      if (iso) dobEl.value = iso;
+    }
+  };
+
+  function _p7normDateISO(raw) {
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : '';
+  }
+
+  const _p7_origSaveEdit = saveEdit;
+  saveEdit = function() {
+    _p7_origSaveEdit.apply(this, arguments);
+    const checked = document.querySelector('input[name="e-allergy-severity"]:checked');
+    if (!checked) return;
+    const idx = (typeof activeIdx !== 'undefined') ? activeIdx : -1;
+    if (idx < 0 || !db[idx]) return;
+    db[idx]['Allergy Severity'] = checked.value;
+    saveDb();
+  };
+
+  const _p7_origAddStudent = addStudent;
+  addStudent = function() {
+    const checked = document.querySelector('input[name="a-allergy-severity"]:checked');
+    _p7_origAddStudent.apply(this, arguments);
+    if (checked && db[0]) {
+      db[0]['Allergy Severity'] = checked.value;
+      saveDb();
+    }
+  };
+
+  // Update classifyAllergy to respect explicit severity
+  window.classifyAllergyForStudent = function(s) {
+    if (s && s['Allergy Severity']) return s['Allergy Severity'];
+    return (typeof classifyAllergy === 'function') ? classifyAllergy((s&&s['Allergies'])||'') : 'unknown';
+  };
+
+  // ── 7I: Calendar text — PDF format ────────────────────────────────────
+  const _p7_origBuildCalText = _buildCalendarText;
+  _buildCalendarText = function() {
+    try { return _p7buildCalendarPDF(); }
+    catch(e) { console.warn('[p7 calText]', e); return _p7_origBuildCalText(); }
+  };
+
+  function _p7buildCalendarPDF() {
+    const sats = (TERM_DATES.schoolSaturdays||[]).slice().sort();
+    const evs  = TERM_DATES.events || [];
+
+    const t1Sats = sats.filter(d => d >= '2025-09-01' && d <= '2025-12-31');
+    const t2Sats = sats.filter(d => d >= '2026-01-01' && d <= '2026-02-28');
+    const t3Sats = sats.filter(d => d >= '2026-03-01');
+
+    const halfEv   = evs.find(e => e.type === 'halfterm');
+    const halfDate = halfEv ? halfEv.date : '';
+    const t3Reopen = halfDate ? t3Sats.find(d => d > halfDate) : (t3Sats[1] || '');
+
+    // Also merge any localStorage overrides
+    const ov = (typeof _calGetOverrides === 'function') ? _calGetOverrides() : {};
+    const ovDate = (base) => {
+      // If an override moves a date, use override date; otherwise use base
+      const ovEntry = Object.entries(ov).find(([,v]) => v._originalDate === base);
+      return ovEntry ? ovEntry[0] : base;
+    };
+
+    const row = (label, iso, note) => {
+      if (!iso) return '';
+      const pad = Math.max(1, 42 - label.length);
+      return `${label}${' '.repeat(pad)}${_p7fmtDate(iso)}${note?' ('+note+')':''}`;
+    };
+
+    // Events
+    const midExam  = evs.find(e => e.type==='exam' && e.date<='2026-06-01');
+    const t2Close  = evs.find(e => e.date==='2026-02-14') || { date: t2Sats[t2Sats.length-1]||'' };
+    const endExams = evs.find(e => e.type==='exam' && e.date>='2026-07-01');
+    const jalsa    = evs.find(e => e.type==='jalsa' && e.date>='2026-07-01');
+
+    const L = [
+      'AL-KAUTHAR (SATURDAY) MADRASAH',
+      'EPSOM & EWELL ISLAMIC CENTRE',
+      '',
+      'KEY DATES (ACADEMIC YEAR 2025-2026)',
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      '1ST TERM 2025',
+      '',
+    ];
+    if (t1Sats[0])              L.push(row('Madrasah Opens', t1Sats[0]) + '  10:30 AM');
+    if (t1Sats.length)          L.push(row('Madrasah Closes (Last Day of Term)', t1Sats[t1Sats.length-1]));
+    L.push('', '');
+    L.push('2ND TERM 2026', '');
+    if (t2Sats[0])              L.push(row('2nd Term Madrasah Opens', t2Sats[0]));
+    if (midExam)                L.push(row('Mid-Year Exam', midExam.date));
+    if (t2Close.date)           L.push(row('Madrasah Closes for Ramadhan', t2Close.date));
+    if (t2Close.date)           L.push('  (Last Open Day of Term)');
+    L.push('', '');
+    L.push('3RD (FINAL) TERM 2026', '');
+    if (t3Sats[0])              L.push(row('Madrasah Opens', t3Sats[0]));
+    if (halfDate)               L.push(row('Half Term (Madrasah closed)', halfDate));
+    if (t3Reopen)               L.push(row('Madrasah Opens', t3Reopen));
+    if (endExams)               L.push(row('End of Year Exams', endExams.date));
+    if (jalsa)                  L.push(row('Jalsa & Last Day of Year', jalsa.date));
+    L.push(
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      'Note: These dates can be subject to change. Any change',
+      'in dates will be notified in advance.',
+      '',
+      'EEIS Al-Kauthar Saturday Madrasah',
+      'madrasah@eeis.co.uk  |  Tel: 01372 210828'
+    );
+    return L.filter(l => l !== null).join('\n');
+  }
+
+  console.log('[Phase 7] Loaded — 7B 7C 7D 7E 7F 7I');
+})();
 </script>
 </body>
 </html>
