@@ -9152,72 +9152,138 @@ function _calCopyForWA(changedDate, changeDesc) {
 // ── Calendar text formatter ────────────────────
 
 function _buildCalendarText() {
-  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  // Sprint 7I: PDF-style key-dates format matching official term dates document
 
-  // Group school Saturdays by term
-  const t1 = TERM_DATES.schoolSaturdays.filter(d => d >= '2025-09-01' && d <= '2025-12-31').sort();
-  const t2 = TERM_DATES.schoolSaturdays.filter(d => d >= '2026-01-01' && d <= '2026-02-28').sort();
-  const t3 = TERM_DATES.schoolSaturdays.filter(d => d >= '2026-03-01' && d <= '2026-08-31').sort();
-
-  const fmt = iso => {
+  const ordinal = n => {
+    const s = ['th','st','nd','rd'];
+    const v = n % 100;
+    return n + (s[(v-20)%10] || s[v] || s[0]);
+  };
+  const fmtDate = iso => {
     const d = new Date(iso + 'T12:00:00');
-    return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
-  };
-  const fmtFull = iso => {
-    const d = new Date(iso + 'T12:00:00');
-    return d.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
-  };
-
-  const termBlock = (label, dates) => {
-    if (!dates.length) return '';
-    return `📚 ${label}\n${dates.map(d => {
-      const ev = TERM_DATES.events.find(e => e.date === d);
-      return `  • ${fmt(d)}${ev ? '  ← ' + ev.label : ''}`;
-    }).join('\n')}`;
+    const day  = ordinal(d.getDate());
+    const mon  = d.toLocaleString('en-GB', {month:'long'});
+    const yr   = d.getFullYear();
+    return `Saturday ${day} ${mon} ${yr}`;
   };
 
-  const holidays = TERM_DATES.holidays.filter(d => d >= '2025-09-01' && d <= '2026-08-31').sort();
-  const holBlock = holidays.map(d => {
-    const ev = TERM_DATES.events.find(e => e.date === d);
-    return `  • ${fmtFull(d)}${ev ? ' — ' + ev.label : ' — Closed'}`;
-  }).join('\n');
+  // Merge overrides + meta labels into events list
+  const overrides = (typeof _calGetOverrides === 'function') ? _calGetOverrides() : {};
+  const meta = (() => { try { return JSON.parse(localStorage.getItem('eeis_cal_meta_v1')||'{}'); } catch(e) { return {}; } })();
+  const evLabel = date => {
+    if (meta[date]?.label) return meta[date].label;
+    const ev = TERM_DATES.events.find(e => e.date === date);
+    return ev ? ev.label : '';
+  };
 
-  const events = TERM_DATES.events.filter(e =>
-    !TERM_DATES.schoolSaturdays.includes(e.date) && !TERM_DATES.holidays.includes(e.date)
-  );
-  const evBlock = events.length ? events.map(e => `  • ${fmtFull(e.date)} — ${e.label}`).join('\n') : '';
+  // Build key dates per term
+  const sats  = TERM_DATES.schoolSaturdays.slice().sort();
+  const hols  = TERM_DATES.holidays.slice().sort();
+  const evts  = TERM_DATES.events.slice().sort((a,b)=>a.date.localeCompare(b.date));
 
-  // Reminders from localStorage
-  const reminders = _calGetReminders?.() || [];
-  const remBlock = reminders.length ? reminders.map(r => `  • ${fmtFull(r.date)} — ${r.label}`).join('\n') : '';
+  const t1Sats = sats.filter(d => d >= '2025-09-01' && d <= '2025-12-31');
+  const t2Sats = sats.filter(d => d >= '2026-01-01' && d <= '2026-02-28');
+  const t3Sats = sats.filter(d => d >= '2026-03-01' && d <= '2026-08-31');
 
-  let text = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const t1Open  = t1Sats[0];
+  const t1Close = t1Sats[t1Sats.length - 1];
+  const t2Open  = t2Sats[0];
+  const t2Close = t2Sats[t2Sats.length - 1];
+  const t3Open  = t3Sats[0];
+
+  // T2 events (exam, Ramadhan close etc.)
+  const t2Evts  = evts.filter(e => e.date >= '2026-01-01' && e.date <= '2026-02-28' && e.date !== t2Open);
+  // T3 events (half term, exams, jalsa)
+  const t3Evts  = evts.filter(e => e.date >= '2026-03-01');
+  // T3 half-term: find the holiday date
+  const t3Halfterm = hols.find(d => d >= '2026-03-01' && d <= '2026-07-31');
+  // T3 re-open after half-term
+  const t3Reopen = t3Halfterm ? t3Sats.find(d => d > t3Halfterm) : null;
+
+  const PAD = 42;
+  const row = (label, date, note) => {
+    const pad = ' '.repeat(Math.max(1, PAD - label.length));
+    return `${label}${pad}${fmtDate(date)}${note ? '\n' + note : ''}`;
+  };
+
+  // Custom added events (from overrides)
+  const customEvts = Object.entries(overrides)
+    .filter(([d, a]) => typeof a === 'string' && a.startsWith('add-event:'))
+    .map(([d, a]) => ({ date: d, label: meta[d]?.label || a.split(':')[1] || 'Event' }))
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  // Reminders
+  const reminders = (typeof _calGetReminders === 'function') ? _calGetReminders() : [];
+
+  let out = `AL-KAUTHAR (SATURDAY) MADRASAH
+EPSOM & EWELL ISLAMIC CENTRE
+
+KEY DATES
+(ACADEMIC YEAR 2025-2026)
+
+`;
+
+  // Term 1
+  out += `1st Term 2025\n\n`;
+  if (t1Open)  out += row('Madrasah Opens', t1Open, '') + '\n';
+  out += row('Madrasah Closes (Last Day of Term)', t1Close, '') + '\n';
+  out += '\n';
+
+  // Term 2
+  out += `\n2nd Term 2026\n\n`;
+  if (t2Open)  out += row('2nd Term Madrasah Opens', t2Open, '') + '\n';
+  t2Evts.forEach(e => {
+    const lbl = meta[e.date]?.label || e.label;
+    out += row(lbl, e.date, '') + '\n';
+  });
+  if (t2Close && !t2Evts.find(e => e.date === t2Close)) {
+    out += row('Madrasah Closes (Last Day of Term)', t2Close, '') + '\n';
+  }
+  out += '\n';
+
+  // Term 3
+  out += `\n3rd (Final) Term 2026\n\n`;
+  if (t3Open)     out += row('Madrasah Opens', t3Open, '') + '\n';
+  if (t3Halfterm) out += row('Half Term (Madrasah closed)', t3Halfterm, '') + '\n';
+  if (t3Reopen)   out += row('Madrasah Opens', t3Reopen, '') + '\n';
+  t3Evts.filter(e => e.date !== t3Halfterm && e.date !== t3Reopen && e.date !== t3Open).forEach(e => {
+    const lbl = meta[e.date]?.label || e.label;
+    out += row(lbl, e.date, '') + '\n';
+  });
+  out += '\n';
+
+  // Custom added special dates
+  if (customEvts.length) {
+    out += `\nAdditional Dates\n\n`;
+    customEvts.forEach(e => { out += row(e.label, e.date, '') + '\n'; });
+    out += '\n';
+  }
+
+  // Reminders
+  if (reminders.length) {
+    out += `\nReminders\n\n`;
+    reminders.forEach(r => { out += row(r.label, r.date, '') + '\n'; });
+    out += '\n';
+  }
+
+  out += `\nNote: These dates can be subject to change. Any change in dates will be notified in advance.
+
 EEIS Al-Kauthar Saturday Madrasah
-Term Calendar 2025 – 2026
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Hook Road, Epsom, Surrey KT19 8TU
+madrasah@eeis.co.uk`;
 
-${termBlock('TERM 1 — Autumn (Sep – Dec 2025)', t1)}
-
-${termBlock('TERM 2 — Spring (Jan – Feb 2026)', t2)}
-
-${termBlock('TERM 3 — Summer (Mar – Jul 2026)', t3)}
-
-🏖 HOLIDAYS & CLOSED DAYS:
-${holBlock || '  None'}`;
-
-  if (evBlock) text += `\n\n📌 KEY EVENTS:\n${evBlock}`;
-  if (remBlock) text += `\n\n⏰ REMINDERS:\n${remBlock}`;
-
-  text += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🕌 Madrasah: Saturday mornings | EEIS, Epsom
-📞 Contact: madrasah@eeis.co.uk
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
-
-  return text;
+  return out;
 }
 
 function _buildCalendarEmailBody(changeDesc, rationale, calText) {
-  return `Assalamu Alaikum Dear Parents and Guardians,
+  return `════════════════════════════════════════
+✦ AL-KAUTHAR SATURDAY MADRASAH
+  Epsom & Ewell Islamic Society
+  Hook Road, Epsom, Surrey KT19 8TU
+  madrasah@eeis.co.uk
+════════════════════════════════════════
+
+Assalamu Alaikum Dear Parents and Guardians,
 
 We are writing to inform you of an update to our term calendar.
 
