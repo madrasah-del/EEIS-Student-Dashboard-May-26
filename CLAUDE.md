@@ -73,6 +73,7 @@ existingFunction = function() {
 4. Sprint 6 — Contact audit, WA comparison, staff compact cards, print, auth fix, calendar editor/notifications
 5. **Phase 7** — Sprint 7B/C/D/E/F/I (student layout, fee reminder WA, staff, nut reminder, allergy severity, calendar PDF format)
 6. **Phase 7 cont.** — Sprint 7A (calendar editor redesign), 7G (EEIS logo), 7H (WL → Enrol)
+7. **Phase 8** — 8A WL form live sync, 8B Import from Excel, Under-6 policy refresh, aged-out flagging
 
 ### Authentication
 - Email login: user types email → validated against approved list → signed in
@@ -177,13 +178,34 @@ doPost(e)                // Reads/writes any tab by name
 
 ---
 
+## Phase 8 (July 2026) — Sync Suite
+
+- ✅ **8A — WL Form Live Sync** — NO Apps Script change was needed. A `WLFormSync` tab in the main spreadsheet holds an `IMPORTRANGE` formula pulling the Google Form responses sheet (`1G4rnFSe7T6VypJ_h5za_W_ebWujCXMDAylmXtW3Iogc`, tab `Form Responses 1`). The app reads it via `sheetsGet('WLFormSync')`. **Do not delete the WLFormSync tab.**
+  - The form changed layout twice: pre-Dec-2025 responses have the full child name in the Surname column and/or a phone number in the First-name column. `_wlParseChild()` handles all three layouts per row.
+  - Matching uses `_wlCandKeys()` (first|last, first|rest-of-name candidate keys) against current students, baked WL, `_WL_GONE` (left/graduated/offered names baked from Excel), and the `WLDismissed` Sheets tab (persistent cross-device removals).
+  - **Reconciliation baseline `_WL_BASE_CUTOFF = '2026-03-17'`** (newest baked WL entry). Only form responses after this are ever imported. Incremental cutoff stored in `eeis_wl_cutoff_v2` advances each sync.
+  - New applicants become full WL entries (bracket, queue position, policy) merged into `WAITING_LIST_DATA` at runtime, persisted in `eeis_wl_live_v3`.
+- ✅ **8B — Import from Excel** — 📥 Excel button on dashboard (Editor+). Lazy-loads SheetJS from CDN, parses `Student Database 2025 -2026` + `Left 25 - 26` tabs from the OneDrive master, shows plain-English diff, Apply adds payments as instalments / updates due & class / adds new students / removes leavers. **Never reduces a recorded payment** — flags for manual review. Excel is master for payments; OneDrive file lives in the eeis@hotmail.co.uk account.
+- ✅ **Under-6 policy refresh** — `_wlRefreshAges()` runs on every `renderWaitlist()`: ages/brackets recomputed from DOB; children turning 6 move to 6-8 with `effectiveDate` = 6th birthday (no early-application advantage).
+- ✅ **Aged-out flagging** — max acceptable age is **13**. Waiting children aged 14+ get a red "⏰ Aged out" chip, dimmed row, and Remove button (staff decide; not auto-removed). Sync skips new applicants over 13.
+
+### Phase 8 sync-related storage
+| Where | Key/Tab | Purpose |
+|-------|---------|---------|
+| Sheets | `WLFormSync` tab | IMPORTRANGE bridge to form responses — do not delete |
+| Sheets | `WLDismissed` tab | Permanently removed applicants (key, name, date, by) |
+| localStorage | `eeis_wl_live_v3` | Imported new applicants (v1/v2 auto-purged — corrupt/pre-baseline) |
+| localStorage | `eeis_wl_cutoff_v2` | Timestamp of newest processed form response |
+
+---
+
 ## Known Issues / Future Work
 
 | Item | Status | Notes |
 |------|--------|-------|
 | `chaseHistory` not in Sheets | Future work | localStorage only; lost on cache clear |
-| WL live sync from Sheets | Needs Apps Script | Add `waitinglist` case to `doPost()` in Code.gs |
-| Excel migration sync | Deferred | Needs column mapping + SheetJS CDN scoping |
+| Excel Left/Graduated names baked in `_WL_GONE` | Manual | Update when students leave/graduate, or Remove via UI |
+| Salma Joosub £260 (app) vs £210 (Excel) | User to review | Flagged during 7 Jul 2026 reconciliation, not changed |
 | Google OAuth `origin_mismatch` | If needed | Add `https://madrasah.eeis.store` to Cloud Console authorised origins |
 | Staff data falls back to seed | If Sheets tab empty | Run `pushStaffSeed()` from Apps Script editor |
 | `chaseHistory` two-system coexistence | Acceptable | `chaseHistory` (current) + `commLog.lastChased` (legacy fallback) both maintained |
