@@ -10196,15 +10196,20 @@ async function _wlGetDismissed() {
   } catch(e) { return []; }
 }
 
-const _WL_LIVE_KEY = 'eeis_wl_live_v2';
+const _WL_LIVE_KEY = 'eeis_wl_live_v3';
 const _WL_CUTOFF_KEY = 'eeis_wl_cutoff_v1';
-// v1 store had corrupted entries from the old form layouts — discard it
-try { localStorage.removeItem('eeis_wl_live_v1'); } catch(e) {}
+// Reconciliation baseline: everything up to this date has been dealt with
+// manually (8 July 2026 rec). Only form responses AFTER this date are imported.
+const _WL_BASE_CUTOFF = '2026-07-08';
+// Old stores predate the baseline — discard them
+try { localStorage.removeItem('eeis_wl_live_v1'); localStorage.removeItem('eeis_wl_live_v2'); } catch(e) {}
 
-// Students who left or graduated (from the Excel master) — never new applicants
+// Students who left, graduated, or have already been offered a place
+// (from the Excel master) — never new applicants
 const _WL_GONE = ['Sola Imran','Isra Imran','Raffay Murtaza','Cherno Abdullahi Barry','Abdul Karim Barry',
   'Hisham Fadarkhan','Tayyaba Waqas','Aliyah Imaan Rosin','Inshirah Nabeel','Fahaden Miah','Akil Ahmed',
-  'Yusuf Syed Ali','Fayaz Miah','Sameer Osman Rahman','Farhan Wahab','Aariz Adam'];
+  'Yusuf Syed Ali','Fayaz Miah','Sameer Osman Rahman','Farhan Wahab','Aariz Adam',
+  'Hawla Faznan Mohamed','Enayah Usman','Zara Farooqi'];
 
 function _wlGetLive() {
   try { return JSON.parse(localStorage.getItem(_WL_LIVE_KEY) || '[]'); } catch(e) { return []; }
@@ -10340,8 +10345,10 @@ _wlSyncFromSheets = async function() {
     });
     (await _wlGetDismissed()).forEach(k => known.add(k));
 
-    // Only look at responses newer than the last good sync
-    const cutoff = localStorage.getItem(_WL_CUTOFF_KEY) || '';
+    // Only look at responses newer than the last good sync — and never
+    // before the manual reconciliation baseline
+    const stored = localStorage.getItem(_WL_CUTOFF_KEY) || '';
+    const cutoff = stored > _WL_BASE_CUTOFF ? stored : _WL_BASE_CUTOFF;
     let maxTs = cutoff;
 
     const freshEntries = [];
