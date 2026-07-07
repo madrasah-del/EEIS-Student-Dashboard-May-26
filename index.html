@@ -10168,5 +10168,296 @@ madrasah@eeis.co.uk`;
   console.log('[Phase 7 cont.] 7A Calendar Editor · 7G Logo · 7H WL Enrol');
 })();
 </script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// PHASE 8 — 8A: WL Form Live Sync (via WLFormSync bridge tab)
+//           8B: Import from Excel (OneDrive master sync)
+// ══════════════════════════════════════════════════════════════
+(function() {
+'use strict';
+
+// ── 8A — Waiting List live sync ───────────────────────────────
+// Reads the WLFormSync tab in the main spreadsheet, which pulls
+// Google Form responses live via IMPORTRANGE. No Apps Script change.
+const _WL_BAKED_COUNT = (typeof WAITING_LIST_DATA !== 'undefined') ? WAITING_LIST_DATA.length : 52;
+
+_wlSyncFromSheets = async function() {
+  const btn = document.getElementById('wl-sync-btn');
+  if (btn) btn.textContent = '⏳ Syncing…';
+  try {
+    const rows = await sheetsGet('WLFormSync');
+    if (!rows.length) throw new Error('WLFormSync tab is empty');
+    const firstCell = String(rows[0][0] || '');
+    if (firstCell.indexOf('#REF!') >= 0 || firstCell.indexOf('#ERROR') >= 0) {
+      alert('One-time setup needed:\n\n1. Open the EEIS Google Sheet\n2. Go to the "WLFormSync" tab\n3. Click cell A1, then click "Allow access"\n\nAfter that, tap Sync again.');
+      return;
+    }
+    const dataRows = rows.slice(1).filter(r => r.some(c => String(c || '').trim() !== ''));
+    localStorage.setItem(_WL_SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), count: dataRows.length }));
+    showToast('✅ Synced — ' + dataRows.length + ' form responses in sheet', 'green');
+    _wlShowFormResponses(rows[0], dataRows);
+  } catch(e) {
+    showToast('❌ Sync failed: ' + e.message, 'red');
+  } finally {
+    if (btn) btn.textContent = '🔄 Sync';
+    _wlShowSyncBanner();
+  }
+};
+
+function _wlShowFormResponses(headers, dataRows) {
+  let ov = document.getElementById('p8-wl-overlay');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'p8-wl-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px 12px;overflow:auto;';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  // Pick the most useful columns automatically
+  const hIdx = (re) => headers.findIndex(h => re.test(String(h || '')));
+  const iTime  = hIdx(/timestamp|date/i);
+  const iChild = hIdx(/child|student|first/i);
+  const iSur   = hIdx(/surname|last/i);
+  const iDob   = hIdx(/birth|dob/i);
+  const iPhone = hIdx(/phone|mobile|contact number/i);
+  const iMail  = hIdx(/e-?mail/i);
+  const recent = dataRows.slice().reverse();
+  const rowsHtml = recent.map((r, n) => {
+    const cell = i => (i >= 0 && r[i] != null) ? String(r[i]).slice(0, 40) : '—';
+    return '<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 8px;color:var(--ink3);font-size:11px;white-space:nowrap;">' + cell(iTime).slice(0, 16) + '</td>'
+      + '<td style="padding:6px 8px;font-weight:700;font-size:13px;">' + cell(iChild) + ' ' + (iSur >= 0 ? cell(iSur) : '') + '</td>'
+      + '<td style="padding:6px 8px;font-size:12px;">' + cell(iDob) + '</td>'
+      + '<td style="padding:6px 8px;font-size:12px;">' + cell(iPhone) + '</td>'
+      + '<td style="padding:6px 8px;font-size:12px;">' + cell(iMail) + '</td></tr>';
+  }).join('');
+  ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:720px;width:100%;padding:18px;" onclick="event.stopPropagation()">'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
+    + '<div style="font-family:\'Cormorant Garamond\',serif;font-size:20px;font-weight:700;flex:1;">📋 Waiting List Form — ' + dataRows.length + ' responses (newest first)</div>'
+    + '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'p8-wl-overlay\').remove()">✕ Close</button></div>'
+    + '<div style="font-size:12px;color:var(--ink3);margin-bottom:8px;">Live from the Google Form. The baked waiting list below has ' + _WL_BAKED_COUNT + ' entries — anything extra here is a new applicant.</div>'
+    + '<div style="overflow:auto;max-height:60vh;"><table style="width:100%;border-collapse:collapse;">'
+    + '<tr style="background:var(--warm);font-size:11px;text-align:left;"><th style="padding:6px 8px;">Date</th><th style="padding:6px 8px;">Child</th><th style="padding:6px 8px;">DOB</th><th style="padding:6px 8px;">Phone</th><th style="padding:6px 8px;">Email</th></tr>'
+    + rowsHtml + '</table></div></div>';
+  document.body.appendChild(ov);
+}
+
+// ── 8B — Import from Excel ────────────────────────────────────
+const _XLSX_CDN = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+let _p8Diff = null;
+
+function _p8Norm(s) { return String(s || '').replace(/[*~^?]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase(); }
+function _p8Key(fn, sn) { return _p8Norm(fn) + '|' + _p8Norm(sn); }
+function _p8Num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[£,]/g, '')); return isNaN(n) ? 0 : n; }
+function _p8Clean(s) { return String(s || '').replace(/[*~^?]/g, '').replace(/\s+/g, ' ').trim(); }
+
+function _p8LoadSheetJS() {
+  return new Promise((res, rej) => {
+    if (typeof XLSX !== 'undefined') return res();
+    const sc = document.createElement('script');
+    sc.src = _XLSX_CDN;
+    sc.onload = () => res();
+    sc.onerror = () => rej(new Error('Could not load the Excel reader — check your internet connection'));
+    document.head.appendChild(sc);
+  });
+}
+
+function openExcelImport() {
+  if (!canEdit()) { showToast('Editors only', 'red'); return; }
+  let ov = document.getElementById('p8-xl-overlay');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'p8-xl-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px 12px;overflow:auto;';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:640px;width:100%;padding:20px;" onclick="event.stopPropagation()">'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+    + '<div style="font-family:\'Cormorant Garamond\',serif;font-size:21px;font-weight:700;flex:1;">📥 Import from Excel</div>'
+    + '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'p8-xl-overlay\').remove()">✕ Close</button></div>'
+    + '<div style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:14px;">'
+    + 'Pick the <strong>Student Database Excel file</strong> (download a copy from OneDrive first).<br>'
+    + 'I\'ll read the <strong>Student Database 2025-2026</strong> and <strong>Left 25-26</strong> tabs, show you exactly what will change, and nothing is saved until you tap Apply.</div>'
+    + '<input type="file" id="p8-xl-file" accept=".xlsx,.xls" style="display:block;margin-bottom:14px;font-size:13px;">'
+    + '<div id="p8-xl-result" style="font-size:13px;"></div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('p8-xl-file').onchange = _p8HandleFile;
+}
+
+async function _p8HandleFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const out = document.getElementById('p8-xl-result');
+  out.innerHTML = '<div style="color:var(--gold-dk);">⏳ Reading ' + file.name + '…</div>';
+  try {
+    await _p8LoadSheetJS();
+    const buf = await file.arrayBuffer();
+    const wbk = XLSX.read(buf, { cellDates: true });
+    const mainName = wbk.SheetNames.find(n => /student\s*database\s*20?25\s*-?\s*20?26/i.test(n));
+    const leftName = wbk.SheetNames.find(n => /^left/i.test(n.trim()));
+    if (!mainName) throw new Error('Could not find a "Student Database 2025-2026" tab. Tabs found: ' + wbk.SheetNames.join(', '));
+    const mainRows = XLSX.utils.sheet_to_json(wbk.Sheets[mainName], { header: 1, raw: false, defval: '' });
+    const leftRows = leftName ? XLSX.utils.sheet_to_json(wbk.Sheets[leftName], { header: 1, raw: false, defval: '' }) : [];
+    _p8Diff = _p8BuildDiff(mainRows, leftRows);
+    _p8RenderPreview(out);
+  } catch(e) {
+    out.innerHTML = '<div style="color:var(--red);">❌ ' + e.message + '</div>';
+  }
+}
+
+function _p8BuildDiff(mainRows, leftRows) {
+  const H = mainRows[0].map(h => String(h || '').trim());
+  const col = name => H.findIndex(h => h.toLowerCase() === name.toLowerCase());
+  const c = {
+    fn: col('First Name'), sn: col('Surname'), dob: col('DOB'), age: col('Age'),
+    gender: col('Gender'), cls: col('Class'), due: col('Fees Due'), paid: col('Fees Paid'),
+    receipt: col('Receipt book Page'), method: col('Method of Payment'), paydate: col('Date of payment'),
+    start: col('Start Date'), mname: col('Mother Name'), mphone: col('Mother Phone'), memail: col('Mother Email'),
+    fname: col('Father Name'), fphone: col('Father Phone'), femail: col('Father Email'),
+    road: col('Road'), town: col('Town'), county: col('County'), post: col('Postcode'),
+    allergy: col('Allergies'), comments: col('Comments')
+  };
+  if (c.fn < 0 || c.sn < 0 || c.paid < 0) throw new Error('The main tab is missing First Name / Surname / Fees Paid columns');
+
+  const appByKey = {};
+  db.forEach((s, i) => { appByKey[_p8Key(s['First Name'], s['Surname'])] = i; });
+
+  const diff = { addPay: [], setField: [], newStudents: [], removals: [], flagged: [] };
+
+  for (let r = 1; r < mainRows.length; r++) {
+    const row = mainRows[r];
+    const fn = row[c.fn], sn = row[c.sn];
+    if (!String(fn || '').trim() || !String(sn || '').trim()) continue;
+    const cls = String(row[c.cls] || '').trim();
+    if (!/^[BG]\d/i.test(cls)) continue; // skip Offered / anomaly rows
+    const k = _p8Key(fn, sn);
+    const xPaid = _p8Num(row[c.paid]);
+    const xDue = _p8Num(row[c.due]);
+    const g = i => (i >= 0 && row[i] != null) ? String(row[i]).trim() : '';
+
+    if (k in appByKey) {
+      const s = db[appByKey[k]];
+      const aPaid = computePaid(s);
+      const delta = Math.round(xPaid - aPaid);
+      if (delta > 0) {
+        diff.addPay.push({ idx: appByKey[k], name: _p8Clean(fn) + ' ' + _p8Clean(sn), amount: delta,
+          method: g(c.method).slice(0, 40) || 'See Excel', paydate: g(c.paydate).slice(0, 40), receipt: g(c.receipt).slice(0, 20) });
+      } else if (delta < 0) {
+        diff.flagged.push(_p8Clean(fn) + ' ' + _p8Clean(sn) + ': app shows £' + aPaid.toFixed(0) + ' paid but Excel shows £' + xPaid.toFixed(0) + ' — not changed, check manually');
+      }
+      const fieldChanges = [];
+      if (xDue && _p8Num(s['Fees Due']) !== xDue) fieldChanges.push({ f: 'Fees Due', v: xDue, label: 'Fees Due £' + _p8Num(s['Fees Due']).toFixed(0) + ' → £' + xDue.toFixed(0) });
+      if (cls && String(s['Class']).trim() !== cls) fieldChanges.push({ f: 'Class', v: cls, label: 'Class ' + s['Class'] + ' → ' + cls });
+      if (fieldChanges.length) diff.setField.push({ idx: appByKey[k], name: _p8Clean(fn) + ' ' + _p8Clean(sn), changes: fieldChanges });
+    } else {
+      const ns = {
+        'First Name': _p8Clean(fn), 'Surname': _p8Clean(sn), 'DOB': g(c.dob), 'Age': g(c.age),
+        'Gender': g(c.gender), 'Class': cls, 'Fees Due': xDue, 'Fees Paid': xPaid,
+        'Fees Outstanding': xPaid - xDue, 'Method of Payment': g(c.method), 'Date of payment': g(c.paydate),
+        'Start Date': g(c.start), 'Mother Name': g(c.mname), 'Mother Phone': g(c.mphone), 'Mother Email': g(c.memail),
+        'Father Name': g(c.fname), 'Father Phone': g(c.fphone), 'Father Email': g(c.femail),
+        'Road': g(c.road), 'Town': g(c.town), 'County': g(c.county), 'Postcode': g(c.post),
+        'Allergies': g(c.allergy), 'Comments': g(c.comments),
+        instalments: xPaid > 0 ? [{ date: _p8IsoDate(g(c.paydate)), amount: xPaid, method: g(c.method).slice(0, 40) || 'See Excel',
+          receipt: g(c.receipt).slice(0, 20), ref: 'Excel import', notes: 'Excel import — new student',
+          addedBy: 'Excel Import', addedAt: new Date().toISOString(), edited: false, editHistory: [] }] : []
+      };
+      diff.newStudents.push(ns);
+    }
+  }
+
+  // Left tab — no header row; col 0 = First Name, col 1 = Surname
+  for (const row of leftRows) {
+    const fn = row[0], sn = row[1];
+    if (!String(fn || '').trim() || !String(sn || '').trim()) continue;
+    const k = _p8Key(fn, sn);
+    if (k in appByKey) diff.removals.push({ key: k, name: _p8Clean(fn) + ' ' + _p8Clean(sn) });
+  }
+  return diff;
+}
+
+function _p8IsoDate(v) {
+  const m = String(v || '').match(/(\d{4})-(\d{2})-(\d{2})/) || String(v || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return new Date().toISOString().slice(0, 10);
+  return m[1].length === 4 ? m[1] + '-' + m[2] + '-' + m[3]
+       : m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0');
+}
+
+function _p8RenderPreview(out) {
+  const d = _p8Diff;
+  const total = d.addPay.length + d.setField.length + d.newStudents.length + d.removals.length;
+  const li = arr => arr.map(x => '<li style="margin:2px 0;">' + x + '</li>').join('');
+  let html = '<div style="border-top:1px solid #eee;padding-top:12px;">';
+  html += '<div style="font-weight:700;font-size:15px;margin-bottom:8px;">' + (total ? 'Found ' + total + ' changes to apply:' : '✅ Everything already matches — nothing to change.') + '</div>';
+  if (d.addPay.length) html += '<div style="margin-bottom:8px;"><strong>➕ Payments to add (' + d.addPay.length + '):</strong><ul style="margin:4px 0 0 18px;padding:0;">'
+    + li(d.addPay.map(p => p.name + ' — <strong>£' + p.amount + '</strong> (' + p.method + ')')) + '</ul></div>';
+  if (d.newStudents.length) html += '<div style="margin-bottom:8px;"><strong>🆕 New students to add (' + d.newStudents.length + '):</strong><ul style="margin:4px 0 0 18px;padding:0;">'
+    + li(d.newStudents.map(s => s['First Name'] + ' ' + s['Surname'] + ' (' + s['Class'] + ')')) + '</ul></div>';
+  if (d.setField.length) html += '<div style="margin-bottom:8px;"><strong>✏️ Details to update (' + d.setField.length + '):</strong><ul style="margin:4px 0 0 18px;padding:0;">'
+    + li(d.setField.map(u => u.name + ' — ' + u.changes.map(ch => ch.label).join(', '))) + '</ul></div>';
+  if (d.removals.length) html += '<div style="margin-bottom:8px;"><strong>🗑 Students who left — to remove (' + d.removals.length + '):</strong><ul style="margin:4px 0 0 18px;padding:0;">'
+    + li(d.removals.map(r => r.name)) + '</ul></div>';
+  if (d.flagged.length) html += '<div style="margin-bottom:8px;background:#fef3cd;border-radius:8px;padding:8px 10px;"><strong>⚠️ Not changed — please review (' + d.flagged.length + '):</strong><ul style="margin:4px 0 0 18px;padding:0;">'
+    + li(d.flagged) + '</ul></div>';
+  if (total) html += '<button class="btn btn-dark" style="width:100%;padding:12px;font-size:15px;margin-top:6px;" onclick="_p8ApplyImport()">✅ Apply ' + total + ' changes &amp; save</button>';
+  html += '</div>';
+  out.innerHTML = html;
+}
+
+function _p8ApplyImport() {
+  if (!guardEdit() || !_p8Diff) return;
+  const d = _p8Diff;
+  let n = 0;
+  for (const p of d.addPay) {
+    const s = db[p.idx];
+    s.instalments = s.instalments || [];
+    const dup = s.instalments.some(x => Math.abs(parseFloat(x.amount) - p.amount) < 0.5 && x.ref === 'Excel import' && x.date === _p8IsoDate(p.paydate));
+    if (dup) continue;
+    s.instalments.push({ date: _p8IsoDate(p.paydate), amount: p.amount, method: p.method, receipt: p.receipt,
+      ref: 'Excel import', notes: 'Excel import' + (p.paydate && !/^\d{4}-/.test(p.paydate) ? ' — paid: ' + p.paydate : ''),
+      addedBy: currentUser ? currentUser.email : 'Excel Import', addedAt: new Date().toISOString(), edited: false, editHistory: [] });
+    n++;
+  }
+  for (const u of d.setField) { for (const ch of u.changes) db[u.idx][ch.f] = ch.v; n++; }
+  for (const ns of d.newStudents) { db.unshift(ns); n++; }
+  // Remove by name key (indices shift after unshift/splice)
+  for (const r of d.removals) {
+    const j = db.findIndex(s => _p8Key(s['First Name'], s['Surname']) === r.key);
+    if (j >= 0) { db.splice(j, 1); n++; }
+  }
+  filtered = [...db];
+  try { renderDashboard(); applyFilters(); } catch(e) {}
+  showToast('💾 Saving ' + n + ' changes…');
+  saveDb().then(() => {
+    showToast('✅ Excel sync complete — ' + n + ' changes saved', 'green');
+    const ovl = document.getElementById('p8-xl-overlay');
+    if (ovl) ovl.remove();
+    _p8Diff = null;
+  }).catch(e => showToast('❌ Save failed: ' + e.message + ' — reload before retrying', 'red'));
+}
+window.openExcelImport = openExcelImport;
+window._p8ApplyImport = _p8ApplyImport;
+
+// Inject 📥 Excel button next to the Audit button (Editor+)
+function _p8InjectBtn() {
+  if (document.getElementById('p8-xl-btn')) return;
+  const role = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.role : '';
+  if (!role || role === 'Viewer') return;
+  const anchor = document.getElementById('p6-audit-btn');
+  if (!anchor || !anchor.parentElement) return;
+  const b = document.createElement('button');
+  b.id = 'p8-xl-btn';
+  b.className = 'btn btn-ghost btn-sm';
+  b.style.cssText = 'font-size:11px;';
+  b.textContent = '📥 Excel';
+  b.onclick = openExcelImport;
+  anchor.parentElement.insertBefore(b, anchor.nextSibling);
+}
+const _p8OrigRD = renderDashboard;
+renderDashboard = function() {
+  _p8OrigRD.apply(this, arguments);
+  setTimeout(_p8InjectBtn, 100);
+};
+
+console.log('[Phase 8] 8A WL Form Live Sync · 8B Import from Excel');
+})();
+</script>
 </body>
 </html>
