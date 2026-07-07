@@ -5757,7 +5757,7 @@ Jazakallah Khayran.`
       const levelCat = getWLLevelCategory(c.Level);
       const levelBadge = `<span style="font-size:9px;padding:1px 5px;border-radius:5px;background:var(--warm);color:var(--ink2);">${levelCat}</span>`;
 
-      html += `<tr class="${rowCls}">
+      html += `<tr class="${rowCls}"${c._agedOut?' style="opacity:.55;"':''}>
         <td class="sticky-col" style="text-align:center;min-width:42px;">
           <div class="queue-pos ${c._queuePos===1?'first':c._queuePos===2?'second':''}">${c._queuePos}<sup>${c._queuePos===1?'st':c._queuePos===2?'nd':c._queuePos===3?'rd':'th'}</sup></div>
           ${isLeader ? '<div class="gold-star-badge">★</div>' : ''}
@@ -5768,6 +5768,7 @@ Jazakallah Khayran.`
             <span class="chip ${c.Gender==='Male'?'chip-B2':'chip-G1'}">${c.Gender==='Male'?'♂':'♀'}</span>
             ${c.hasSibling?'<span class="sibling-badge">⚭ sibling</span>':''}
             ${c.isPolicyEffect?'<span class="policy-badge">⚠ policy</span>':''}
+            ${c._agedOut?`<span class="chip" style="background:#fee2e2;color:#b91c1c;font-weight:700;">⏰ Aged out (${c.calculatedAge})</span><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);padding:1px 6px;" onclick="_wlDismissApplicant('${(typeof _wlKey==='function'?_wlKey(c.Firstname,c.Surname):'').replace(/'/g,"\\'")}','${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")}')">🚫 Remove</button>`:''}
           </div>
         </td>
         <td class="hide-mobile">
@@ -10372,7 +10373,7 @@ _wlSyncFromSheets = async function() {
       if (cands.some(k => known.has(k))) { skippedKnown++; continue; }
 
       const entry = _wlEntryFromForm(r, idx, child);
-      if (entry.calculatedAge > 15) { skippedKnown++; continue; } // aged out of the Madrasah
+      if (entry.calculatedAge > 13) { skippedKnown++; continue; } // 13 is the oldest acceptable age
       freshEntries.push(entry);
       cands.forEach(k => known.add(k)); // guard against duplicate submissions
     }
@@ -10455,6 +10456,8 @@ function _wlRefreshAges() {
       c.bracket = newBracket;
       c.isPolicyEffect = age < 6;
     }
+    // 13 is the oldest age a child can still be accepted — 14+ is aged out
+    c._agedOut = c.Status === 'Waiting' && age > 13;
   }
 }
 
