@@ -10197,12 +10197,17 @@ async function _wlGetDismissed() {
 }
 
 const _WL_LIVE_KEY = 'eeis_wl_live_v3';
-const _WL_CUTOFF_KEY = 'eeis_wl_cutoff_v1';
-// Reconciliation baseline: everything up to this date has been dealt with
-// manually (8 July 2026 rec). Only form responses AFTER this date are imported.
-const _WL_BASE_CUTOFF = '2026-07-08';
+const _WL_CUTOFF_KEY = 'eeis_wl_cutoff_v2';
+// Reconciliation baseline = the date the baked waiting list was last curated
+// (newest baked entry: 17 Mar 2026). Only form responses AFTER this date are
+// imported; everything on or before it is covered by the curated list.
+const _WL_BASE_CUTOFF = '2026-03-17';
 // Old stores predate the baseline — discard them
-try { localStorage.removeItem('eeis_wl_live_v1'); localStorage.removeItem('eeis_wl_live_v2'); } catch(e) {}
+try {
+  localStorage.removeItem('eeis_wl_live_v1');
+  localStorage.removeItem('eeis_wl_live_v2');
+  localStorage.removeItem('eeis_wl_cutoff_v1');
+} catch(e) {}
 
 // Students who left, graduated, or have already been offered a place
 // (from the Excel master) — never new applicants
