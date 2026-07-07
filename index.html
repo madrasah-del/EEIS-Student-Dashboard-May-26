@@ -10433,12 +10433,38 @@ function _wlShowNewApplicants(entries) {
   document.body.appendChild(ov);
 }
 
-// Merge saved live applicants on app open (after db loads)
+// Under-6 policy refresh: recompute age & bracket from DOB so children who
+// have turned 6 move into the 6-8 bracket automatically. Their queue position
+// uses effectiveDate (their 6th birthday), so applying early gains nothing.
+function _wlRefreshAges() {
+  const now = new Date();
+  for (const c of WAITING_LIST_DATA) {
+    if (!c.DOB || !/^\d{4}-\d{2}-\d{2}/.test(c.DOB)) continue;
+    const b = new Date(c.DOB);
+    const age = now.getFullYear() - b.getFullYear() - ((now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) ? 1 : 0);
+    if (age === c.calculatedAge && c.bracket !== 'Under 6') continue;
+    c.calculatedAge = age;
+    c.preciseAge = age + ' yrs';
+    const newBracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-15';
+    if (c.bracket !== newBracket) {
+      // Policy children join the 6-8 queue from their 6th birthday,
+      // not their original application date
+      if (c.bracket === 'Under 6' && newBracket === '6-8') {
+        c.effectiveDate = (b.getFullYear() + 6) + c.DOB.slice(4, 10);
+      }
+      c.bracket = newBracket;
+      c.isPolicyEffect = age < 6;
+    }
+  }
+}
+
+// Merge saved live applicants on app open (after db loads) + refresh ages
 (function() {
   const _p8OrigRW = renderWaitlist;
   let _p8Merged = false;
   renderWaitlist = function() {
     if (!_p8Merged && typeof db !== 'undefined' && db.length) { _wlMergeLive(); _p8Merged = true; }
+    _wlRefreshAges();
     _p8OrigRW.apply(this, arguments);
   };
 })();
