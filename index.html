@@ -10196,15 +10196,52 @@ async function _wlGetDismissed() {
   } catch(e) { return []; }
 }
 
-const _WL_LIVE_KEY = 'eeis_wl_live_v1';
+const _WL_LIVE_KEY = 'eeis_wl_live_v2';
+const _WL_CUTOFF_KEY = 'eeis_wl_cutoff_v1';
+// v1 store had corrupted entries from the old form layouts — discard it
+try { localStorage.removeItem('eeis_wl_live_v1'); } catch(e) {}
+
+// Students who left or graduated (from the Excel master) — never new applicants
+const _WL_GONE = ['Sola Imran','Isra Imran','Raffay Murtaza','Cherno Abdullahi Barry','Abdul Karim Barry',
+  'Hisham Fadarkhan','Tayyaba Waqas','Aliyah Imaan Rosin','Inshirah Nabeel','Fahaden Miah','Akil Ahmed',
+  'Yusuf Syed Ali','Fayaz Miah','Sameer Osman Rahman','Farhan Wahab','Aariz Adam'];
 
 function _wlGetLive() {
   try { return JSON.parse(localStorage.getItem(_WL_LIVE_KEY) || '[]'); } catch(e) { return []; }
 }
 function _wlSaveLive(arr) { localStorage.setItem(_WL_LIVE_KEY, JSON.stringify(arr)); }
 
+// All plausible match keys for a name — handles multi-word surnames and
+// full names typed into one field ("Riyad Aslam Mooneegan")
+function _wlCandKeys(fn, sn) {
+  const keys = new Set([_wlKey(fn, sn)]);
+  const parts = (String(fn || '') + ' ' + String(sn || '')).replace(/[*~^?.]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase().split(' ');
+  if (parts.length >= 2) {
+    keys.add(parts[0] + '|' + parts[parts.length - 1]);
+    keys.add(parts[0] + '|' + parts.slice(1).join(' '));
+  }
+  keys.delete('|');
+  return [...keys];
+}
+
+// The form layout changed twice over the years — parse each row adaptively
+function _wlParseChild(r, idx) {
+  const isPhone = s => /^[\d\s()+.-]{9,}$/.test(String(s || '').trim());
+  let fn = String(idx.child >= 0 ? r[idx.child] || '' : '').trim();
+  let sn = String(idx.sur >= 0 ? r[idx.sur] || '' : '').trim();
+  let parentPhone = '';
+  if (isPhone(fn)) { parentPhone = fn; fn = ''; }
+  if (!fn && sn) {
+    // Old layouts: the full child name lives in the surname column
+    const parts = sn.replace(/[.]/g, '').replace(/\s+/g, ' ').trim().split(' ');
+    fn = parts[0] || '';
+    sn = parts.slice(1).join(' ');
+  }
+  return { fn: fn, sn: sn, parentPhone: parentPhone };
+}
+
 // Convert a form response row into a proper waiting-list entry
-function _wlEntryFromForm(r, idx) {
+function _wlEntryFromForm(r, idx, child) {
   const g = i => (i >= 0 && r[i] != null) ? String(r[i]).trim() : '';
   const dobRaw = g(idx.dob);
   const dobM = dobRaw.match(/(\d{4})-(\d{2})-(\d{2})/) || dobRaw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -10223,9 +10260,9 @@ function _wlEntryFromForm(r, idx) {
   if (isPolicy && dob) { const b = new Date(dob); effective = (b.getFullYear() + 6) + dob.slice(4); }
   const gender = /^f/i.test(g(idx.gender)) ? 'Female' : 'Male';
   return {
-    Firstname: g(idx.child).replace(/\s+/g, ' '), Surname: g(idx.sur).replace(/\s+/g, ' '),
+    Firstname: child.fn.replace(/\s+/g, ' '), Surname: child.sn.replace(/\s+/g, ' '),
     DOB: dob, Gender: gender, DateSubmitted: submitted, Level: '',
-    Mother: { Name: g(idx.mname), Phone: g(idx.mphone), Email: g(idx.mmail) || g(idx.email) },
+    Mother: { Name: g(idx.mname), Phone: g(idx.mphone) || child.parentPhone, Email: g(idx.mmail) || g(idx.email) },
     Father: { Name: g(idx.fname), Phone: g(idx.fphone), Email: g(idx.fmail) },
     Status: 'Waiting', calculatedAge: age, preciseAge: age + ' yrs', bracket: bracket,
     isPolicyEffect: isPolicy, effectiveDate: effective, hasSibling: false, _live: true
@@ -10234,14 +10271,15 @@ function _wlEntryFromForm(r, idx) {
 
 // Merge saved live applicants into WAITING_LIST_DATA (runs on load + after sync)
 function _wlMergeLive() {
-  const existing = new Set(WAITING_LIST_DATA.map(c => _wlKey(c.Firstname, c.Surname)));
-  const enrolled = new Set(db.map(s => _wlKey(s['First Name'], s['Surname'])));
+  const known = new Set();
+  WAITING_LIST_DATA.forEach(c => _wlCandKeys(c.Firstname, c.Surname).forEach(k => known.add(k)));
+  db.forEach(s => _wlCandKeys(s['First Name'], s['Surname']).forEach(k => known.add(k)));
   let added = 0;
   for (const entry of _wlGetLive()) {
-    const k = _wlKey(entry.Firstname, entry.Surname);
-    if (existing.has(k) || enrolled.has(k)) continue;
+    const cands = _wlCandKeys(entry.Firstname, entry.Surname);
+    if (cands.some(k => known.has(k))) continue;
     WAITING_LIST_DATA.push(entry);
-    existing.add(k);
+    cands.forEach(k => known.add(k));
     added++;
   }
   return added;
@@ -10291,18 +10329,40 @@ _wlSyncFromSheets = async function() {
       fname: hIdx(/father.*name/i), fphone: hIdx(/father.*phone/i), fmail: hIdx(/father.*e-?mail/i)
     };
 
-    // Anyone already known is NOT a new applicant
-    const knownStudents = new Set(db.map(s => _wlKey(s['First Name'], s['Surname'])));
-    const knownWL = new Set(WAITING_LIST_DATA.map(c => _wlKey(c.Firstname, c.Surname)));
-    const dismissed = new Set(await _wlGetDismissed());
+    // Anyone already known is NOT a new applicant — expand every name into
+    // all its candidate keys so spelling layouts still match
+    const known = new Set();
+    db.forEach(s => _wlCandKeys(s['First Name'], s['Surname']).forEach(k => known.add(k)));
+    WAITING_LIST_DATA.forEach(c => _wlCandKeys(c.Firstname, c.Surname).forEach(k => known.add(k)));
+    _WL_GONE.forEach(n => {
+      const p = n.split(' ');
+      _wlCandKeys(p[0], p.slice(1).join(' ')).forEach(k => known.add(k));
+    });
+    (await _wlGetDismissed()).forEach(k => known.add(k));
+
+    // Only look at responses newer than the last good sync
+    const cutoff = localStorage.getItem(_WL_CUTOFF_KEY) || '';
+    let maxTs = cutoff;
 
     const freshEntries = [];
+    let skippedKnown = 0, skippedInvalid = 0, skippedOld = 0;
     for (const r of dataRows) {
-      const k = _wlKey(idx.child >= 0 ? r[idx.child] : '', idx.sur >= 0 ? r[idx.sur] : '');
-      if (k === '|' || knownStudents.has(k) || knownWL.has(k) || dismissed.has(k)) continue;
-      const entry = _wlEntryFromForm(r, idx);
+      const ts = String(idx.time >= 0 ? r[idx.time] || '' : '');
+      if (ts > maxTs) maxTs = ts;
+      if (cutoff && ts && ts <= cutoff) { skippedOld++; continue; }
+
+      const child = _wlParseChild(r, idx);
+      const dobOk = /\d{4}-\d{2}-\d{2}/.test(String(r[idx.dob] || '')) || /\d{1,2}\/\d{1,2}\/\d{4}/.test(String(r[idx.dob] || ''));
+      const nameOk = child.fn.replace(/[^a-zA-Z]/g, '').length >= 2 && !/\d{4,}/.test(child.fn + child.sn);
+      if (!nameOk || !dobOk) { skippedInvalid++; continue; }
+
+      const cands = _wlCandKeys(child.fn, child.sn);
+      if (cands.some(k => known.has(k))) { skippedKnown++; continue; }
+
+      const entry = _wlEntryFromForm(r, idx, child);
+      if (entry.calculatedAge > 15) { skippedKnown++; continue; } // aged out of the Madrasah
       freshEntries.push(entry);
-      knownWL.add(k); // guard against duplicate form submissions
+      cands.forEach(k => known.add(k)); // guard against duplicate submissions
     }
 
     // Add them to the waiting list (in memory + saved locally)
@@ -10315,6 +10375,7 @@ _wlSyncFromSheets = async function() {
       try { renderWaitlist(); } catch(e) {}
     }
 
+    if (maxTs) localStorage.setItem(_WL_CUTOFF_KEY, maxTs);
     localStorage.setItem(_WL_SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), count: dataRows.length, fresh: freshEntries.length }));
     if (freshEntries.length) {
       showToast('✨ ' + freshEntries.length + ' new applicants added to the waiting list', 'green');
@@ -10322,6 +10383,7 @@ _wlSyncFromSheets = async function() {
     } else {
       showToast('✅ No new applicants since last sync', 'green');
     }
+    console.log('[WL Sync] new:', freshEntries.length, '· already known:', skippedKnown, '· invalid rows:', skippedInvalid, '· before last sync:', skippedOld);
   } catch(e) {
     showToast('❌ Sync failed: ' + e.message, 'red');
   } finally {
