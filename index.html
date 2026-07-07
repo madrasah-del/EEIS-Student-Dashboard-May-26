@@ -10196,16 +10196,72 @@ async function _wlGetDismissed() {
   } catch(e) { return []; }
 }
 
+const _WL_LIVE_KEY = 'eeis_wl_live_v1';
+
+function _wlGetLive() {
+  try { return JSON.parse(localStorage.getItem(_WL_LIVE_KEY) || '[]'); } catch(e) { return []; }
+}
+function _wlSaveLive(arr) { localStorage.setItem(_WL_LIVE_KEY, JSON.stringify(arr)); }
+
+// Convert a form response row into a proper waiting-list entry
+function _wlEntryFromForm(r, idx) {
+  const g = i => (i >= 0 && r[i] != null) ? String(r[i]).trim() : '';
+  const dobRaw = g(idx.dob);
+  const dobM = dobRaw.match(/(\d{4})-(\d{2})-(\d{2})/) || dobRaw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const dob = dobM ? (dobM[1].length === 4 ? dobM[1] + '-' + dobM[2] + '-' + dobM[3]
+    : dobM[3] + '-' + String(dobM[2]).padStart(2, '0') + '-' + String(dobM[1]).padStart(2, '0')) : '';
+  const subRaw = g(idx.time);
+  const submitted = (subRaw.match(/(\d{4}-\d{2}-\d{2})/) || [,''])[1] || new Date().toISOString().slice(0, 10);
+  let age = 0;
+  if (dob) {
+    const b = new Date(dob), now = new Date();
+    age = now.getFullYear() - b.getFullYear() - ((now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) ? 1 : 0);
+  }
+  const bracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-15';
+  const isPolicy = age < 6;
+  let effective = submitted;
+  if (isPolicy && dob) { const b = new Date(dob); effective = (b.getFullYear() + 6) + dob.slice(4); }
+  const gender = /^f/i.test(g(idx.gender)) ? 'Female' : 'Male';
+  return {
+    Firstname: g(idx.child).replace(/\s+/g, ' '), Surname: g(idx.sur).replace(/\s+/g, ' '),
+    DOB: dob, Gender: gender, DateSubmitted: submitted, Level: '',
+    Mother: { Name: g(idx.mname), Phone: g(idx.mphone), Email: g(idx.mmail) || g(idx.email) },
+    Father: { Name: g(idx.fname), Phone: g(idx.fphone), Email: g(idx.fmail) },
+    Status: 'Waiting', calculatedAge: age, preciseAge: age + ' yrs', bracket: bracket,
+    isPolicyEffect: isPolicy, effectiveDate: effective, hasSibling: false, _live: true
+  };
+}
+
+// Merge saved live applicants into WAITING_LIST_DATA (runs on load + after sync)
+function _wlMergeLive() {
+  const existing = new Set(WAITING_LIST_DATA.map(c => _wlKey(c.Firstname, c.Surname)));
+  const enrolled = new Set(db.map(s => _wlKey(s['First Name'], s['Surname'])));
+  let added = 0;
+  for (const entry of _wlGetLive()) {
+    const k = _wlKey(entry.Firstname, entry.Surname);
+    if (existing.has(k) || enrolled.has(k)) continue;
+    WAITING_LIST_DATA.push(entry);
+    existing.add(k);
+    added++;
+  }
+  return added;
+}
+
 window._wlDismissApplicant = async function(key, name) {
   if (!canEdit()) { showToast('Editors only', 'red'); return; }
-  if (!confirm('Remove "' + name + '" from new applicants?\n\nUse this for families who no longer want a place, duplicates, or anyone already dealt with. They will not appear in future syncs.')) return;
+  if (!confirm('Remove "' + name + '" from the waiting list?\n\nUse this for families who no longer want a place, duplicates, or anyone already dealt with. They will not appear again.')) return;
   try {
     let rows = [];
     try { rows = await sheetsGet('WLDismissed'); } catch(e) {}
     if (!rows.length) rows = [['Key', 'Name', 'Date', 'By']];
     rows.push([key, name, new Date().toISOString().slice(0, 10), (typeof currentUser !== 'undefined' && currentUser) ? currentUser.email : '']);
     await sheetsPost('WLDismissed', rows);
-    showToast('🚫 ' + name + ' won\'t appear again', 'green');
+    // Remove from the live list and the in-memory waiting list
+    _wlSaveLive(_wlGetLive().filter(e => _wlKey(e.Firstname, e.Surname) !== key));
+    const i = WAITING_LIST_DATA.findIndex(c => c._live && _wlKey(c.Firstname, c.Surname) === key);
+    if (i >= 0) WAITING_LIST_DATA.splice(i, 1);
+    try { renderWaitlist(); } catch(e) {}
+    showToast('🚫 ' + name + ' removed — won\'t appear again', 'green');
     const row = document.getElementById('p8-wlrow-' + key.replace(/[^a-z0-9]/g, '_'));
     if (row) row.remove();
   } catch(e) { showToast('❌ ' + e.message, 'red'); }
@@ -10225,27 +10281,47 @@ _wlSyncFromSheets = async function() {
     const headers = rows[0];
     const dataRows = rows.slice(1).filter(r => r.some(c => String(c || '').trim() !== ''));
 
-    // Build "already known" sets — these are NOT new applicants
+    // Column positions in the form responses
+    const hIdx = re => headers.findIndex(h => re.test(String(h || '')));
+    const idx = {
+      time: hIdx(/timestamp/i), email: hIdx(/^e-?mail address/i),
+      child: hIdx(/child.*first/i), sur: hIdx(/child.*surname|surname/i),
+      dob: hIdx(/birth|dob/i), gender: hIdx(/gender/i),
+      mname: hIdx(/mother.*name/i), mphone: hIdx(/mother.*phone/i), mmail: hIdx(/mother.*e-?mail/i),
+      fname: hIdx(/father.*name/i), fphone: hIdx(/father.*phone/i), fmail: hIdx(/father.*e-?mail/i)
+    };
+
+    // Anyone already known is NOT a new applicant
     const knownStudents = new Set(db.map(s => _wlKey(s['First Name'], s['Surname'])));
-    const knownWL = new Set((typeof WAITING_LIST_DATA !== 'undefined' ? WAITING_LIST_DATA : []).map(c => _wlKey(c.Firstname, c.Surname)));
+    const knownWL = new Set(WAITING_LIST_DATA.map(c => _wlKey(c.Firstname, c.Surname)));
     const dismissed = new Set(await _wlGetDismissed());
 
-    const hIdx = re => headers.findIndex(h => re.test(String(h || '')));
-    const iChild = hIdx(/child.*first|first.*name/i);
-    const iSur = hIdx(/surname|last name/i);
-    const fresh = [], known = { student: 0, waitlist: 0, dismissed: 0 };
+    const freshEntries = [];
     for (const r of dataRows) {
-      const k = _wlKey(iChild >= 0 ? r[iChild] : '', iSur >= 0 ? r[iSur] : '');
-      if (k === '|') continue;
-      if (knownStudents.has(k)) { known.student++; continue; }
-      if (knownWL.has(k)) { known.waitlist++; continue; }
-      if (dismissed.has(k)) { known.dismissed++; continue; }
-      fresh.push({ row: r, key: k });
+      const k = _wlKey(idx.child >= 0 ? r[idx.child] : '', idx.sur >= 0 ? r[idx.sur] : '');
+      if (k === '|' || knownStudents.has(k) || knownWL.has(k) || dismissed.has(k)) continue;
+      const entry = _wlEntryFromForm(r, idx);
+      freshEntries.push(entry);
+      knownWL.add(k); // guard against duplicate form submissions
     }
 
-    localStorage.setItem(_WL_SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), count: dataRows.length, fresh: fresh.length }));
-    showToast(fresh.length ? '✨ ' + fresh.length + ' genuinely new applicants' : '✅ No new applicants — all responses already dealt with', 'green');
-    _wlShowFormResponses(headers, fresh, dataRows.length, known);
+    // Add them to the waiting list (in memory + saved locally)
+    if (freshEntries.length) {
+      const live = _wlGetLive();
+      const liveKeys = new Set(live.map(e => _wlKey(e.Firstname, e.Surname)));
+      for (const e of freshEntries) { if (!liveKeys.has(_wlKey(e.Firstname, e.Surname))) live.push(e); }
+      _wlSaveLive(live);
+      _wlMergeLive();
+      try { renderWaitlist(); } catch(e) {}
+    }
+
+    localStorage.setItem(_WL_SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), count: dataRows.length, fresh: freshEntries.length }));
+    if (freshEntries.length) {
+      showToast('✨ ' + freshEntries.length + ' new applicants added to the waiting list', 'green');
+      _wlShowNewApplicants(freshEntries);
+    } else {
+      showToast('✅ No new applicants since last sync', 'green');
+    }
   } catch(e) {
     showToast('❌ Sync failed: ' + e.message, 'red');
   } finally {
@@ -10254,48 +10330,44 @@ _wlSyncFromSheets = async function() {
   }
 };
 
-function _wlShowFormResponses(headers, fresh, totalCount, known) {
+function _wlShowNewApplicants(entries) {
   let ov = document.getElementById('p8-wl-overlay');
   if (ov) ov.remove();
   ov = document.createElement('div');
   ov.id = 'p8-wl-overlay';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px 12px;overflow:auto;';
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
-  const hIdx = re => headers.findIndex(h => re.test(String(h || '')));
-  const iTime = hIdx(/timestamp|date/i);
-  const iChild = hIdx(/child.*first|first.*name/i);
-  const iSur = hIdx(/surname|last name/i);
-  const iDob = hIdx(/birth|dob/i);
-  const iPhone = hIdx(/phone|mobile|contact number/i);
-  const iMail = hIdx(/e-?mail/i);
-  const rowsHtml = fresh.slice().reverse().map(f => {
-    const r = f.row;
-    const cell = i => (i >= 0 && r[i] != null) ? String(r[i]).slice(0, 40) : '—';
-    const nm = (cell(iChild) + ' ' + (iSur >= 0 ? cell(iSur) : '')).replace(/\s+/g, ' ').trim();
-    const rowId = 'p8-wlrow-' + f.key.replace(/[^a-z0-9]/g, '_');
-    return '<tr id="' + rowId + '" style="border-bottom:1px solid #eee;"><td style="padding:6px 8px;color:var(--ink3);font-size:11px;white-space:nowrap;">' + cell(iTime).slice(0, 10) + '</td>'
+  const rowsHtml = entries.slice().reverse().map(e => {
+    const k = _wlKey(e.Firstname, e.Surname);
+    const nm = (e.Firstname + ' ' + e.Surname).trim();
+    const rowId = 'p8-wlrow-' + k.replace(/[^a-z0-9]/g, '_');
+    return '<tr id="' + rowId + '" style="border-bottom:1px solid #eee;">'
+      + '<td style="padding:6px 8px;color:var(--ink3);font-size:11px;white-space:nowrap;">' + e.DateSubmitted + '</td>'
       + '<td style="padding:6px 8px;font-weight:700;font-size:13px;">' + nm + '</td>'
-      + '<td style="padding:6px 8px;font-size:12px;white-space:nowrap;">' + cell(iDob).slice(0, 10) + '</td>'
-      + '<td style="padding:6px 8px;font-size:12px;">' + cell(iPhone) + '</td>'
-      + '<td style="padding:6px 8px;font-size:12px;word-break:break-all;">' + cell(iMail) + '</td>'
-      + '<td style="padding:6px 8px;"><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);" onclick="_wlDismissApplicant(\'' + f.key.replace(/'/g, "\\'") + '\',\'' + nm.replace(/'/g, "\\'") + '\')">🚫 Remove</button></td></tr>';
+      + '<td style="padding:6px 8px;font-size:12px;white-space:nowrap;">' + e.preciseAge + ' · ' + e.bracket + '</td>'
+      + '<td style="padding:6px 8px;font-size:12px;">' + (e.Mother.Phone || e.Father.Phone || '—') + '</td>'
+      + '<td style="padding:6px 8px;"><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);" onclick="_wlDismissApplicant(\'' + k.replace(/'/g, "\\'") + '\',\'' + nm.replace(/'/g, "\\'") + '\')">🚫 Remove</button></td></tr>';
   }).join('');
-  ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:760px;width:100%;padding:18px;" onclick="event.stopPropagation()">'
+  ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:680px;width:100%;padding:18px;" onclick="event.stopPropagation()">'
     + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
-    + '<div style="font-family:\'Cormorant Garamond\',serif;font-size:20px;font-weight:700;flex:1;">✨ New Applicants — ' + fresh.length + '</div>'
+    + '<div style="font-family:\'Cormorant Garamond\',serif;font-size:20px;font-weight:700;flex:1;">✨ ' + entries.length + ' New Applicants Added</div>'
     + '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'p8-wl-overlay\').remove()">✕ Close</button></div>'
-    + '<div style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5;">Filtered from ' + totalCount + ' total form responses: '
-    + known.student + ' are already enrolled students, ' + known.waitlist + ' are already on the waiting list'
-    + (known.dismissed ? ', ' + known.dismissed + ' previously removed' : '') + '.<br>'
-    + 'Tap <strong>🚫 Remove</strong> for anyone who no longer wants a place — they won\'t appear again on any device.</div>'
-    + (fresh.length
-      ? '<div style="overflow:auto;max-height:60vh;"><table style="width:100%;border-collapse:collapse;">'
-        + '<tr style="background:var(--warm);font-size:11px;text-align:left;"><th style="padding:6px 8px;">Applied</th><th style="padding:6px 8px;">Child</th><th style="padding:6px 8px;">DOB</th><th style="padding:6px 8px;">Phone</th><th style="padding:6px 8px;">Email</th><th></th></tr>'
-        + rowsHtml + '</table></div>'
-      : '<div style="text-align:center;padding:24px;color:var(--ink3);">✅ Every form response is already accounted for.</div>')
-    + '</div>';
+    + '<div style="font-size:12px;color:var(--ink3);margin-bottom:10px;">These have been added to the waiting list below, in their age brackets. Tap <strong>🚫 Remove</strong> for anyone who no longer wants a place.</div>'
+    + '<div style="overflow:auto;max-height:60vh;"><table style="width:100%;border-collapse:collapse;">'
+    + '<tr style="background:var(--warm);font-size:11px;text-align:left;"><th style="padding:6px 8px;">Applied</th><th style="padding:6px 8px;">Child</th><th style="padding:6px 8px;">Age</th><th style="padding:6px 8px;">Phone</th><th></th></tr>'
+    + rowsHtml + '</table></div></div>';
   document.body.appendChild(ov);
 }
+
+// Merge saved live applicants on app open (after db loads)
+(function() {
+  const _p8OrigRW = renderWaitlist;
+  let _p8Merged = false;
+  renderWaitlist = function() {
+    if (!_p8Merged && typeof db !== 'undefined' && db.length) { _wlMergeLive(); _p8Merged = true; }
+    _p8OrigRW.apply(this, arguments);
+  };
+})();
 
 // Banner shows the genuinely-new count instead of the raw sheet difference
 const _p8OrigBanner = _wlShowSyncBanner;
