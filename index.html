@@ -10182,6 +10182,35 @@ madrasah@eeis.co.uk`;
 // Google Form responses live via IMPORTRANGE. No Apps Script change.
 const _WL_BAKED_COUNT = (typeof WAITING_LIST_DATA !== 'undefined') ? WAITING_LIST_DATA.length : 52;
 
+// Match key: first word of first name + surname, cleaned & lowercased
+function _wlKey(fn, sn) {
+  const f = String(fn || '').replace(/[*~^?]/g, ' ').trim().toLowerCase().split(/\s+/)[0] || '';
+  const s = String(sn || '').replace(/[*~^?]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  return f + '|' + s;
+}
+
+async function _wlGetDismissed() {
+  try {
+    const rows = await sheetsGet('WLDismissed');
+    return rows.filter(r => r[0] && String(r[0]).indexOf('|') > 0).map(r => String(r[0]));
+  } catch(e) { return []; }
+}
+
+window._wlDismissApplicant = async function(key, name) {
+  if (!canEdit()) { showToast('Editors only', 'red'); return; }
+  if (!confirm('Remove "' + name + '" from new applicants?\n\nUse this for families who no longer want a place, duplicates, or anyone already dealt with. They will not appear in future syncs.')) return;
+  try {
+    let rows = [];
+    try { rows = await sheetsGet('WLDismissed'); } catch(e) {}
+    if (!rows.length) rows = [['Key', 'Name', 'Date', 'By']];
+    rows.push([key, name, new Date().toISOString().slice(0, 10), (typeof currentUser !== 'undefined' && currentUser) ? currentUser.email : '']);
+    await sheetsPost('WLDismissed', rows);
+    showToast('🚫 ' + name + ' won\'t appear again', 'green');
+    const row = document.getElementById('p8-wlrow-' + key.replace(/[^a-z0-9]/g, '_'));
+    if (row) row.remove();
+  } catch(e) { showToast('❌ ' + e.message, 'red'); }
+};
+
 _wlSyncFromSheets = async function() {
   const btn = document.getElementById('wl-sync-btn');
   if (btn) btn.textContent = '⏳ Syncing…';
@@ -10193,10 +10222,30 @@ _wlSyncFromSheets = async function() {
       alert('One-time setup needed:\n\n1. Open the EEIS Google Sheet\n2. Go to the "WLFormSync" tab\n3. Click cell A1, then click "Allow access"\n\nAfter that, tap Sync again.');
       return;
     }
+    const headers = rows[0];
     const dataRows = rows.slice(1).filter(r => r.some(c => String(c || '').trim() !== ''));
-    localStorage.setItem(_WL_SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), count: dataRows.length }));
-    showToast('✅ Synced — ' + dataRows.length + ' form responses in sheet', 'green');
-    _wlShowFormResponses(rows[0], dataRows);
+
+    // Build "already known" sets — these are NOT new applicants
+    const knownStudents = new Set(db.map(s => _wlKey(s['First Name'], s['Surname'])));
+    const knownWL = new Set((typeof WAITING_LIST_DATA !== 'undefined' ? WAITING_LIST_DATA : []).map(c => _wlKey(c.Firstname, c.Surname)));
+    const dismissed = new Set(await _wlGetDismissed());
+
+    const hIdx = re => headers.findIndex(h => re.test(String(h || '')));
+    const iChild = hIdx(/child.*first|first.*name/i);
+    const iSur = hIdx(/surname|last name/i);
+    const fresh = [], known = { student: 0, waitlist: 0, dismissed: 0 };
+    for (const r of dataRows) {
+      const k = _wlKey(iChild >= 0 ? r[iChild] : '', iSur >= 0 ? r[iSur] : '');
+      if (k === '|') continue;
+      if (knownStudents.has(k)) { known.student++; continue; }
+      if (knownWL.has(k)) { known.waitlist++; continue; }
+      if (dismissed.has(k)) { known.dismissed++; continue; }
+      fresh.push({ row: r, key: k });
+    }
+
+    localStorage.setItem(_WL_SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), count: dataRows.length, fresh: fresh.length }));
+    showToast(fresh.length ? '✨ ' + fresh.length + ' genuinely new applicants' : '✅ No new applicants — all responses already dealt with', 'green');
+    _wlShowFormResponses(headers, fresh, dataRows.length, known);
   } catch(e) {
     showToast('❌ Sync failed: ' + e.message, 'red');
   } finally {
@@ -10205,40 +10254,61 @@ _wlSyncFromSheets = async function() {
   }
 };
 
-function _wlShowFormResponses(headers, dataRows) {
+function _wlShowFormResponses(headers, fresh, totalCount, known) {
   let ov = document.getElementById('p8-wl-overlay');
   if (ov) ov.remove();
   ov = document.createElement('div');
   ov.id = 'p8-wl-overlay';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px 12px;overflow:auto;';
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
-  // Pick the most useful columns automatically
-  const hIdx = (re) => headers.findIndex(h => re.test(String(h || '')));
-  const iTime  = hIdx(/timestamp|date/i);
-  const iChild = hIdx(/child|student|first/i);
-  const iSur   = hIdx(/surname|last/i);
-  const iDob   = hIdx(/birth|dob/i);
+  const hIdx = re => headers.findIndex(h => re.test(String(h || '')));
+  const iTime = hIdx(/timestamp|date/i);
+  const iChild = hIdx(/child.*first|first.*name/i);
+  const iSur = hIdx(/surname|last name/i);
+  const iDob = hIdx(/birth|dob/i);
   const iPhone = hIdx(/phone|mobile|contact number/i);
-  const iMail  = hIdx(/e-?mail/i);
-  const recent = dataRows.slice().reverse();
-  const rowsHtml = recent.map((r, n) => {
+  const iMail = hIdx(/e-?mail/i);
+  const rowsHtml = fresh.slice().reverse().map(f => {
+    const r = f.row;
     const cell = i => (i >= 0 && r[i] != null) ? String(r[i]).slice(0, 40) : '—';
-    return '<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 8px;color:var(--ink3);font-size:11px;white-space:nowrap;">' + cell(iTime).slice(0, 16) + '</td>'
-      + '<td style="padding:6px 8px;font-weight:700;font-size:13px;">' + cell(iChild) + ' ' + (iSur >= 0 ? cell(iSur) : '') + '</td>'
-      + '<td style="padding:6px 8px;font-size:12px;">' + cell(iDob) + '</td>'
+    const nm = (cell(iChild) + ' ' + (iSur >= 0 ? cell(iSur) : '')).replace(/\s+/g, ' ').trim();
+    const rowId = 'p8-wlrow-' + f.key.replace(/[^a-z0-9]/g, '_');
+    return '<tr id="' + rowId + '" style="border-bottom:1px solid #eee;"><td style="padding:6px 8px;color:var(--ink3);font-size:11px;white-space:nowrap;">' + cell(iTime).slice(0, 10) + '</td>'
+      + '<td style="padding:6px 8px;font-weight:700;font-size:13px;">' + nm + '</td>'
+      + '<td style="padding:6px 8px;font-size:12px;white-space:nowrap;">' + cell(iDob).slice(0, 10) + '</td>'
       + '<td style="padding:6px 8px;font-size:12px;">' + cell(iPhone) + '</td>'
-      + '<td style="padding:6px 8px;font-size:12px;">' + cell(iMail) + '</td></tr>';
+      + '<td style="padding:6px 8px;font-size:12px;word-break:break-all;">' + cell(iMail) + '</td>'
+      + '<td style="padding:6px 8px;"><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);" onclick="_wlDismissApplicant(\'' + f.key.replace(/'/g, "\\'") + '\',\'' + nm.replace(/'/g, "\\'") + '\')">🚫 Remove</button></td></tr>';
   }).join('');
-  ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:720px;width:100%;padding:18px;" onclick="event.stopPropagation()">'
+  ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:760px;width:100%;padding:18px;" onclick="event.stopPropagation()">'
     + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
-    + '<div style="font-family:\'Cormorant Garamond\',serif;font-size:20px;font-weight:700;flex:1;">📋 Waiting List Form — ' + dataRows.length + ' responses (newest first)</div>'
+    + '<div style="font-family:\'Cormorant Garamond\',serif;font-size:20px;font-weight:700;flex:1;">✨ New Applicants — ' + fresh.length + '</div>'
     + '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'p8-wl-overlay\').remove()">✕ Close</button></div>'
-    + '<div style="font-size:12px;color:var(--ink3);margin-bottom:8px;">Live from the Google Form. The baked waiting list below has ' + _WL_BAKED_COUNT + ' entries — anything extra here is a new applicant.</div>'
-    + '<div style="overflow:auto;max-height:60vh;"><table style="width:100%;border-collapse:collapse;">'
-    + '<tr style="background:var(--warm);font-size:11px;text-align:left;"><th style="padding:6px 8px;">Date</th><th style="padding:6px 8px;">Child</th><th style="padding:6px 8px;">DOB</th><th style="padding:6px 8px;">Phone</th><th style="padding:6px 8px;">Email</th></tr>'
-    + rowsHtml + '</table></div></div>';
+    + '<div style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5;">Filtered from ' + totalCount + ' total form responses: '
+    + known.student + ' are already enrolled students, ' + known.waitlist + ' are already on the waiting list'
+    + (known.dismissed ? ', ' + known.dismissed + ' previously removed' : '') + '.<br>'
+    + 'Tap <strong>🚫 Remove</strong> for anyone who no longer wants a place — they won\'t appear again on any device.</div>'
+    + (fresh.length
+      ? '<div style="overflow:auto;max-height:60vh;"><table style="width:100%;border-collapse:collapse;">'
+        + '<tr style="background:var(--warm);font-size:11px;text-align:left;"><th style="padding:6px 8px;">Applied</th><th style="padding:6px 8px;">Child</th><th style="padding:6px 8px;">DOB</th><th style="padding:6px 8px;">Phone</th><th style="padding:6px 8px;">Email</th><th></th></tr>'
+        + rowsHtml + '</table></div>'
+      : '<div style="text-align:center;padding:24px;color:var(--ink3);">✅ Every form response is already accounted for.</div>')
+    + '</div>';
   document.body.appendChild(ov);
 }
+
+// Banner shows the genuinely-new count instead of the raw sheet difference
+const _p8OrigBanner = _wlShowSyncBanner;
+_wlShowSyncBanner = function() {
+  _p8OrigBanner.apply(this, arguments);
+  const textEl = document.getElementById('wl-sync-text');
+  const syncData = (() => { try { return JSON.parse(localStorage.getItem(_WL_SYNC_KEY) || 'null'); } catch(e) { return null; } })();
+  if (textEl && syncData && typeof syncData.fresh === 'number') {
+    const when = new Date(syncData.time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    textEl.innerHTML = '🔄 Last synced ' + when + ' · ' + syncData.count + ' form responses · '
+      + (syncData.fresh > 0 ? '<strong style="color:#16a34a;">✨ ' + syncData.fresh + ' genuinely new</strong>' : '✅ no new applicants');
+  }
+};
 
 // ── 8B — Import from Excel ────────────────────────────────────
 const _XLSX_CDN = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
