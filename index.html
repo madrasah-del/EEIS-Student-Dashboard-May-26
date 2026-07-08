@@ -3736,7 +3736,10 @@ async function sheetsPost(tab, rows) {
     body: JSON.stringify({ tab, rows })
   });
   const txt = await r.text();
-  if (txt !== 'OK') throw new Error('Write failed: ' + txt);
+  // Success is either the legacy plain 'OK' or JSON like {"ok":true,"written":118}
+  let ok = (txt === 'OK');
+  if (!ok) { try { ok = JSON.parse(txt).ok === true; } catch(e) {} }
+  if (!ok) throw new Error('Write failed: ' + txt);
   return true;
 }
 
