@@ -10776,6 +10776,7 @@ window._p9AutoSync = _p9AutoSync;
   const _p9OrigRD = renderDashboard;
   renderDashboard = function() {
     _p9OrigRD.apply(this, arguments);
+    setTimeout(_p9InjectHeaderBtn, 150);
     if (!started && typeof db !== 'undefined' && db.length && typeof currentUser !== 'undefined' && currentUser) {
       started = true;
       setTimeout(() => _p9AutoSync(false), 2500);
@@ -10791,6 +10792,26 @@ window.openExcelImport = function() {
   _p9AutoSync(true);
 };
 window.openExcelImportManual = _p9OrigOpen;
+
+// Always-visible 🔄 Excel refresh button in the app header (Editor+)
+function _p9InjectHeaderBtn() {
+  if (document.getElementById('p9-refresh-btn')) return;
+  if (typeof currentUser === 'undefined' || !currentUser || !canEdit()) return;
+  const anchor = document.getElementById('print-btn');
+  if (!anchor || !anchor.parentElement) return;
+  const b = document.createElement('button');
+  b.id = 'p9-refresh-btn';
+  b.className = 'hdr-btn';
+  b.title = 'Refresh from the Excel spreadsheet';
+  b.style.cssText = 'min-height:36px;min-width:36px;';
+  b.textContent = '🔄';
+  b.onclick = function() {
+    b.textContent = '⏳';
+    showToast('📥 Checking the live Excel spreadsheet…', 'blue');
+    _p9AutoSync(true).finally(() => { b.textContent = '🔄'; });
+  };
+  anchor.parentElement.insertBefore(b, anchor);
+}
 
 console.log('[Phase 9] Silent Excel auto-sync active (excel-proxy.php)');
 })();
