@@ -10661,6 +10661,14 @@ function _p8ApplyImport() {
     n++;
   }
   for (const u of d.setField) { for (const ch of u.changes) db[u.idx][ch.f] = ch.v; n++; }
+  // Recompute the raw balance fields so every dashboard metric agrees
+  for (const p of d.addPay.concat(d.setField)) {
+    const s = db[p.idx];
+    if (!s) continue;
+    const paid = computePaid(s);
+    s['Fees Paid'] = paid;
+    s['Fees Outstanding'] = paid - (parseFloat(s['Fees Due']) || 0);
+  }
   for (const ns of d.newStudents) { db.unshift(ns); n++; }
   // Remove by name key (indices shift after unshift/splice)
   for (const r of d.removals) {
@@ -10725,7 +10733,6 @@ async function _p9AutoSync(manual) {
       const last = parseInt(localStorage.getItem(_P9_LAST_KEY) || '0', 10);
       if (Date.now() - last < _P9_THROTTLE_MIN * 60000) return;
     }
-    localStorage.setItem(_P9_LAST_KEY, String(Date.now()));
 
     const resp = await fetch(_P9_PROXY + '?ts=' + Date.now());
     if (!resp.ok) throw new Error('Excel fetch failed (' + resp.status + ')');
@@ -10739,6 +10746,8 @@ async function _p9AutoSync(manual) {
     const leftRows = leftName ? XLSX.utils.sheet_to_json(wbk.Sheets[leftName], { header: 1, raw: false, defval: '' }) : [];
     const diff = _p8BuildDiff(mainRows, leftRows);
     const total = diff.addPay.length + diff.setField.length + diff.newStudents.length + diff.removals.length;
+    // Sync genuinely completed — only now start the throttle window
+    localStorage.setItem(_P9_LAST_KEY, String(Date.now()));
 
     if (diff.flagged.length) {
       console.warn('[Excel auto-sync] Not changed — review manually:');
@@ -10797,20 +10806,20 @@ window.openExcelImportManual = _p9OrigOpen;
 function _p9InjectHeaderBtn() {
   if (document.getElementById('p9-refresh-btn')) return;
   if (typeof currentUser === 'undefined' || !currentUser || !canEdit()) return;
-  const anchor = document.getElementById('print-btn');
-  if (!anchor || !anchor.parentElement) return;
+  const header = document.querySelector('.header-right');
+  if (!header) return;
   const b = document.createElement('button');
   b.id = 'p9-refresh-btn';
   b.className = 'hdr-btn';
   b.title = 'Refresh from the Excel spreadsheet';
-  b.style.cssText = 'min-height:36px;min-width:36px;';
+  b.style.cssText = 'min-height:36px;min-width:36px;background:#e8f5e9;border:1px solid #a5d6a7;';
   b.textContent = '🔄';
   b.onclick = function() {
     b.textContent = '⏳';
     showToast('📥 Checking the live Excel spreadsheet…', 'blue');
     _p9AutoSync(true).finally(() => { b.textContent = '🔄'; });
   };
-  anchor.parentElement.insertBefore(b, anchor);
+  header.insertBefore(b, header.firstChild.nextSibling); // right after the sync pill
 }
 
 console.log('[Phase 9] Silent Excel auto-sync active (excel-proxy.php)');
