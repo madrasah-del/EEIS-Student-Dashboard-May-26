@@ -10704,5 +10704,96 @@ renderDashboard = function() {
 console.log('[Phase 8] 8A WL Form Live Sync · 8B Import from Excel');
 })();
 </script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// PHASE 9 — Silent Excel auto-sync (OneDrive → app, one-way)
+// Fetches the live workbook via excel-proxy.php on the same server,
+// diffs it with the Phase 8B engine, applies additive changes, saves.
+// ══════════════════════════════════════════════════════════════
+(function() {
+'use strict';
+const _P9_PROXY = 'excel-proxy.php';
+const _P9_LAST_KEY = 'eeis_excel_autosync_v1';
+const _P9_THROTTLE_MIN = 10; // don't re-sync within 10 minutes
+
+async function _p9AutoSync(manual) {
+  try {
+    if (typeof db === 'undefined' || !db.length) return;
+    if (!canEdit()) return; // viewers never write
+    if (!manual) {
+      const last = parseInt(localStorage.getItem(_P9_LAST_KEY) || '0', 10);
+      if (Date.now() - last < _P9_THROTTLE_MIN * 60000) return;
+    }
+    localStorage.setItem(_P9_LAST_KEY, String(Date.now()));
+
+    const resp = await fetch(_P9_PROXY + '?ts=' + Date.now());
+    if (!resp.ok) throw new Error('Excel fetch failed (' + resp.status + ')');
+    const buf = await resp.arrayBuffer();
+    await _p8LoadSheetJS();
+    const wbk = XLSX.read(buf, { cellDates: true });
+    const mainName = wbk.SheetNames.find(n => /student\s*database\s*20?25\s*-?\s*20?26/i.test(n));
+    const leftName = wbk.SheetNames.find(n => /^left/i.test(n.trim()));
+    if (!mainName) throw new Error('2025-2026 tab not found in the live Excel');
+    const mainRows = XLSX.utils.sheet_to_json(wbk.Sheets[mainName], { header: 1, raw: false, defval: '' });
+    const leftRows = leftName ? XLSX.utils.sheet_to_json(wbk.Sheets[leftName], { header: 1, raw: false, defval: '' }) : [];
+    const diff = _p8BuildDiff(mainRows, leftRows);
+    const total = diff.addPay.length + diff.setField.length + diff.newStudents.length + diff.removals.length;
+
+    if (diff.flagged.length) {
+      console.warn('[Excel auto-sync] Not changed — review manually:');
+      diff.flagged.forEach(f => console.warn('  ⚠️', f));
+    }
+    if (!total) {
+      if (manual) showToast('✅ Already in sync with the Excel spreadsheet', 'green');
+      console.log('[Excel auto-sync] Everything already matches.' + (diff.flagged.length ? ' (' + diff.flagged.length + ' flagged for review — see above)' : ''));
+      return;
+    }
+
+    // Apply through the same tested Phase 8B path
+    _p8Diff = diff;
+    const parts = [];
+    if (diff.addPay.length) parts.push(diff.addPay.length + ' payment' + (diff.addPay.length > 1 ? 's' : ''));
+    if (diff.newStudents.length) parts.push(diff.newStudents.length + ' new student' + (diff.newStudents.length > 1 ? 's' : ''));
+    if (diff.setField.length) parts.push(diff.setField.length + ' detail update' + (diff.setField.length > 1 ? 's' : ''));
+    if (diff.removals.length) parts.push(diff.removals.length + ' leaver' + (diff.removals.length > 1 ? 's' : ''));
+    console.log('[Excel auto-sync] Applying:', parts.join(', '));
+    diff.addPay.forEach(p => console.log('  ➕', p.name, '£' + p.amount, '(' + p.method + ')'));
+    diff.newStudents.forEach(s => console.log('  🆕', s['First Name'], s['Surname'], '(' + s['Class'] + ')'));
+    diff.removals.forEach(r => console.log('  🗑', r.name));
+    showToast('📥 Excel sync: ' + parts.join(', ') + '…', 'blue');
+    _p8ApplyImport();
+  } catch(e) {
+    console.warn('[Excel auto-sync]', e.message);
+    if (manual) showToast('❌ Excel sync failed: ' + e.message, 'red');
+  }
+}
+window._p9AutoSync = _p9AutoSync;
+
+// Run automatically once the app is signed in and data is loaded
+(function() {
+  let started = false;
+  const _p9OrigRD = renderDashboard;
+  renderDashboard = function() {
+    _p9OrigRD.apply(this, arguments);
+    if (!started && typeof db !== 'undefined' && db.length && typeof currentUser !== 'undefined' && currentUser) {
+      started = true;
+      setTimeout(() => _p9AutoSync(false), 2500);
+    }
+  };
+})();
+
+// The 📥 Excel button now triggers the silent sync too (file picker still
+// available inside the overlay as a fallback if the proxy is ever down)
+const _p9OrigOpen = window.openExcelImport;
+window.openExcelImport = function() {
+  showToast('📥 Checking the live Excel spreadsheet…', 'blue');
+  _p9AutoSync(true);
+};
+window.openExcelImportManual = _p9OrigOpen;
+
+console.log('[Phase 9] Silent Excel auto-sync active (excel-proxy.php)');
+})();
+</script>
 </body>
 </html>
