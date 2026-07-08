@@ -10687,6 +10687,9 @@ function _p8ApplyImport() {
 }
 window.openExcelImport = openExcelImport;
 window._p8ApplyImport = _p8ApplyImport;
+window._p8LoadSheetJS = _p8LoadSheetJS;
+window._p8BuildDiff = _p8BuildDiff;
+window._p8SetDiff = function(d) { _p8Diff = d; };
 
 // Inject 📥 Excel button next to the Audit button (Editor+)
 function _p8InjectBtn() {
@@ -10760,7 +10763,7 @@ async function _p9AutoSync(manual) {
     }
 
     // Apply through the same tested Phase 8B path
-    _p8Diff = diff;
+    window._p8SetDiff(diff);
     const parts = [];
     if (diff.addPay.length) parts.push(diff.addPay.length + ' payment' + (diff.addPay.length > 1 ? 's' : ''));
     if (diff.newStudents.length) parts.push(diff.newStudents.length + ' new student' + (diff.newStudents.length > 1 ? 's' : ''));

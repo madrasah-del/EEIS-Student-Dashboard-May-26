@@ -1,0 +1,10 @@
+# EEIS Dashboard — always serve the freshest app
+# HTML must revalidate on every load so phones never show a stale build.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html)$|^$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.php$">
+    Header set Cache-Control "no-store"
+  </FilesMatch>
+</IfModule>
