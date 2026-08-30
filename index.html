@@ -5693,7 +5693,20 @@ function renderWaitlist() {
   // Sort by effectiveDate for queue positions
   const sorted = [...pool].sort((a,b) => new Date(a.effectiveDate) - new Date(b.effectiveDate));
 
-  // Build per-bracket queue positions
+  // Overall queue position — the PRIMARY number: 1st, 2nd, 3rd... for each
+  // gender, longest-waiting first, regardless of age bracket. Boys and girls
+  // are numbered as two separate sequences (a girl and a boy can both be #1).
+  // Under-6 children are excluded — they're not in the main list at all.
+  const genderPositions = { Male: 0, Female: 0 };
+  sorted.forEach(c => {
+    if (c.bracket === 'Under 6') { c._overallPos = null; return; }
+    if (!(c.Gender in genderPositions)) genderPositions[c.Gender] = 0;
+    genderPositions[c.Gender]++;
+    c._overallPos = genderPositions[c.Gender];
+  });
+
+  // Bracket position — the SECONDARY number: where they stand within their
+  // own age-group cohort specifically.
   const bracketPositions = {};
   sorted.forEach(c => {
     if (!bracketPositions[c.bracket]) bracketPositions[c.bracket] = 0;
@@ -5777,7 +5790,7 @@ function renderWaitlist() {
       const kids = grp.kids;
 
     kids.forEach((c, i) => {
-      const isLeader = leaders[c.bracket] === c.Firstname + c.Surname;
+      const isLeader = c._overallPos === 1;
       const rowCls = c.Gender === 'Female' ? 'wl-row-female' : c.Status === 'Senior Candidate' ? 'wl-row-senior' : 'wl-row-male';
       const phone  = c.Mother.Phone || c.Father.Phone || '';
       const name   = c.Mother.Phone ? c.Mother.Name  : c.Father.Name;
@@ -5801,8 +5814,9 @@ Jazakallah Khayran.`
       const levelBadge = `<span style="font-size:9px;padding:1px 5px;border-radius:5px;background:var(--warm);color:var(--ink2);">${levelCat}</span>`;
 
       html += `<tr class="${rowCls}"${c._agedOut?' style="opacity:.55;"':''}>
-        <td class="sticky-col" style="text-align:center;min-width:42px;">
-          <div class="queue-pos ${c._queuePos===1?'first':c._queuePos===2?'second':''}">${c._queuePos}<sup>${c._queuePos===1?'st':c._queuePos===2?'nd':c._queuePos===3?'rd':'th'}</sup></div>
+        <td class="sticky-col" style="text-align:center;min-width:56px;">
+          <div class="queue-pos ${c._overallPos===1?'first':c._overallPos===2?'second':''}" title="#${c._overallPos} of all ${c.Gender==='Male'?'boys':'girls'} waiting, by how long they've waited">${c._overallPos}<sup>${c._overallPos===1?'st':c._overallPos===2?'nd':c._overallPos===3?'rd':'th'}</sup></div>
+          <div style="font-size:9px;color:var(--ink3);margin-top:1px;" title="Position within the ${c.bracket} age group specifically">${c._queuePos}${c._queuePos===1?'st':c._queuePos===2?'nd':c._queuePos===3?'rd':'th'} in ${c.bracket}</div>
           ${isLeader ? '<div class="gold-star-badge">★</div>' : ''}
         </td>
         <td>
@@ -10535,7 +10549,6 @@ function _wlRefreshAges() {
     if (!c.DOB || !/^\d{4}-\d{2}-\d{2}/.test(c.DOB)) continue;
     const b = new Date(c.DOB);
     const age = _ayAge(c.DOB, now);
-    if (age === c.calculatedAge && c.bracket !== 'Under 6') continue;
     c.calculatedAge = age;
     c.preciseAge = age + ' yrs';
     const newBracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-13';
@@ -10547,8 +10560,13 @@ function _wlRefreshAges() {
         c.effectiveDate = _ayIso(_ayCutoff(sixthBday));
       }
       c.bracket = newBracket;
-      c.isPolicyEffect = age < 6;
     }
+    // isPolicyEffect and _agedOut must be recomputed every pass, not just
+    // when the bracket changes — otherwise a child whose bracket was
+    // already correct (e.g. baked directly as '6-8') can be left showing
+    // a stale "policy" flag from whatever the field held when it was
+    // created, even though they no longer meet the Under-6 definition.
+    c.isPolicyEffect = age < 6;
     // 13 is the oldest age a child can still be accepted (must not turn 14
     // before the 1 September cutoff) — 14+ as of that cutoff is aged out
     c._agedOut = c.Status === 'Waiting' && age > 13;
