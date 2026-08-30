@@ -5804,7 +5804,7 @@ Jazakallah Khayran.`
           ${isLeader ? '<div class="gold-star-badge">★</div>' : ''}
         </td>
         <td>
-          <div style="font-weight:700;font-size:var(--font-md);cursor:pointer;" onclick="if(typeof openWLDetail==='function')openWLDetail('${(typeof _wlKey==='function'?_wlKey(c.Firstname,c.Surname):'').replace(/'/g,"\\'")}')" title="Tap for full details">${c.Firstname} ${c.Surname}</div>
+          <div style="font-weight:700;font-size:var(--font-md);cursor:pointer;" onclick="if(typeof openWLDetail==='function')openWLDetail(${WAITING_LIST_DATA.indexOf(c)})" title="Tap for full details">${c.Firstname} ${c.Surname}</div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;">
             <span class="chip ${c.Gender==='Male'?'chip-B2':'chip-G1'}">${c.Gender==='Male'?'♂':'♀'}</span>
             ${c.hasSibling?'<span class="sibling-badge">⚭ sibling</span>':''}
@@ -10016,7 +10016,7 @@ madrasah@eeis.co.uk`;
   const _WL_ENROLLED_KEY = 'eeis_wl_enrolled_v1';
   function _wlGetEnrolled() { try { return new Set(JSON.parse(localStorage.getItem(_WL_ENROLLED_KEY)||'[]')); } catch(e) { return new Set(); } }
   function _wlSaveEnrolled(s) { localStorage.setItem(_WL_ENROLLED_KEY, JSON.stringify([...s])); }
-  function _wlKey(c) { return `${(c.Firstname||'').trim()}|${(c.Surname||'').trim()}`.toLowerCase(); }
+  function _wlEnrolKey(c) { return `${(c.Firstname||'').trim()}|${(c.Surname||'').trim()}`.toLowerCase(); }
 
   window.openWLEnrolPanel = function(wlIdx) {
     const wl = (typeof WAITING_LIST_DATA !== 'undefined') ? WAITING_LIST_DATA : [];
@@ -10150,7 +10150,7 @@ madrasah@eeis.co.uk`;
     db.unshift(ns);
     if (typeof saveDb === 'function') saveDb();
     const enrolled = _wlGetEnrolled();
-    enrolled.add(_wlKey(c));
+    enrolled.add(_wlEnrolKey(c));
     _wlSaveEnrolled(enrolled);
     document.getElementById('p7-enrol-overlay').style.display = 'none';
     showToast(`✅ ${fn} ${sn} enrolled in Class ${cls}!`, 'green');
@@ -10182,7 +10182,7 @@ madrasah@eeis.co.uk`;
         text.includes(c.Firstname.toLowerCase()) && text.includes(c.Surname.toLowerCase())
       );
       if (!entry) return;
-      const key = _wlKey(entry);
+      const key = _wlEnrolKey(entry);
       const entryIdx = wl.indexOf(entry);
       const lastTd = row.querySelector('td:last-child');
       if (!lastTd) return;
@@ -10230,6 +10230,7 @@ function _wlKey(fn, sn) {
   const s = String(sn || '').replace(/[*~^?]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
   return f + '|' + s;
 }
+window._wlKey = _wlKey; // referenced from renderWaitlist's row markup, outside this IIFE's scope
 
 async function _wlGetDismissed() {
   try {
@@ -10906,10 +10907,9 @@ function _p10FmtDate(d) {
   return parseInt(da, 10) + ' ' + months[parseInt(mo, 10)] + ' ' + y;
 }
 
-window.openWLDetail = function(key) {
+window.openWLDetail = function(idx) {
   const wl = (typeof WAITING_LIST_DATA !== 'undefined') ? WAITING_LIST_DATA : [];
-  const idx = wl.findIndex(c => (typeof _wlKey === 'function' ? _wlKey(c.Firstname, c.Surname) : '') === key);
-  if (idx < 0) return;
+  if (idx == null || idx < 0 || !wl[idx]) return;
   const c = wl[idx];
 
   let ov = document.getElementById('p10-wl-detail');
