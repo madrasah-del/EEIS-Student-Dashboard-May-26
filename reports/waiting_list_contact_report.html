@@ -1,0 +1,1611 @@
+<title>Waiting List Contact Register</title>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+  :root {
+    --paper: #faf6ee;
+    --surface: #ffffff;
+    --surface-2: #f4efe4;
+    --ink: #2a2118;
+    --ink-soft: #6e6153;
+    --ink-faint: #a89a86;
+    --maroon: #7a1f2b;
+    --maroon-soft: #f3e4e1;
+    --sage: #55684f;
+    --sage-soft: #e7ede2;
+    --gold: #a9803d;
+    --gold-soft: #f4e9d5;
+    --border: #e7dfd1;
+    --shadow: 0 1px 2px rgba(42,33,24,.06), 0 4px 14px rgba(42,33,24,.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1c1712;
+      --surface: #241e18;
+      --surface-2: #2c251d;
+      --ink: #f1e9dc;
+      --ink-soft: #b8ab98;
+      --ink-faint: #7d7161;
+      --maroon: #e0929c;
+      --maroon-soft: #3b2225;
+      --sage: #9bb393;
+      --sage-soft: #26301f;
+      --gold: #d8b172;
+      --gold-soft: #332714;
+      --border: #3a3229;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1c1712;
+    --surface: #241e18;
+    --surface-2: #2c251d;
+    --ink: #f1e9dc;
+    --ink-soft: #b8ab98;
+    --ink-faint: #7d7161;
+    --maroon: #e0929c;
+    --maroon-soft: #3b2225;
+    --sage: #9bb393;
+    --sage-soft: #26301f;
+    --gold: #d8b172;
+    --gold-soft: #332714;
+    --border: #3a3229;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Public Sans', system-ui, -apple-system, sans-serif;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.5;
+  }
+
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+
+  /* ── Header ───────────────────────────────────────── */
+  .report-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .header-text .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--sage);
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-family: 'Lora', serif;
+    font-weight: 700;
+    font-size: clamp(28px, 4.2vw, 38px);
+    margin: 0 0 8px;
+    text-wrap: balance;
+    color: var(--ink);
+  }
+  .header-text .sub {
+    font-size: 14px;
+    color: var(--ink-soft);
+    max-width: 56ch;
+  }
+  .print-btn {
+    font: inherit;
+    font-weight: 600;
+    font-size: 13px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1.5px solid var(--border);
+    border-radius: 9px;
+    padding: 9px 16px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    white-space: nowrap;
+  }
+  .print-btn:hover { border-color: var(--maroon); color: var(--maroon); }
+  .print-btn:focus-visible { outline: 2px solid var(--maroon); outline-offset: 2px; }
+
+  /* ── Summary strip ────────────────────────────────── */
+  .summary-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 36px;
+    box-shadow: var(--shadow);
+  }
+  .summary-cell {
+    background: var(--surface);
+    padding: 14px 16px;
+  }
+  .summary-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--maroon);
+  }
+  .summary-label {
+    font-size: 11px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-top: 2px;
+  }
+  .method-note {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 40px;
+  }
+  .method-note strong { color: var(--ink); }
+
+  /* ── Gender sections ──────────────────────────────── */
+  .gender-section { margin-bottom: 48px; }
+  .gender-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 2.5px solid var(--ink);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+  .gender-title {
+    font-family: 'Lora', serif;
+    font-weight: 700;
+    font-size: 24px;
+    margin: 0;
+  }
+  .boys .gender-title { color: var(--sage); border: none; }
+  .girls .gender-title { color: var(--maroon); }
+  .gender-total {
+    font-size: 13px;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+
+  .bracket { margin-bottom: 28px; }
+  .bracket:last-child { margin-bottom: 0; }
+  .bracket-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Public Sans', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--ink);
+    background: var(--surface-2);
+    border-radius: 7px;
+    padding: 7px 12px;
+    margin: 0 0 10px;
+  }
+  .bracket-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--ink-soft);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .bracket-empty {
+    font-size: 13px;
+    color: var(--ink-faint);
+    font-style: italic;
+    padding: 0 4px;
+  }
+
+  .entry-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+
+  .entry {
+    display: flex;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow);
+  }
+  .entry.is-leader {
+    border-color: var(--gold);
+    background: linear-gradient(180deg, var(--gold-soft), var(--surface) 70%);
+  }
+
+  .entry-rank {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 12px;
+    margin-top: 1px;
+  }
+  .is-leader .entry-rank {
+    background: var(--gold);
+    color: var(--surface);
+    font-size: 14px;
+  }
+
+  .entry-main { flex: 1; min-width: 0; }
+  .entry-headline {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .entry-name {
+    font-family: 'Lora', serif;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .entry-age {
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+
+  .entry-meta {
+    display: flex;
+    gap: 18px;
+    font-size: 12.5px;
+    margin-bottom: 7px;
+    flex-wrap: wrap;
+  }
+  .meta-item { font-family: 'IBM Plex Mono', monospace; color: var(--ink); }
+  .meta-label {
+    font-family: 'Public Sans', sans-serif;
+    display: block;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+  .meta-wait .meta-label { color: var(--maroon); }
+  .meta-wait { color: var(--maroon); font-weight: 600; }
+
+  .entry-notes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .entry-notes:empty { display: none; margin: 0; }
+  .tag {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .tag-level { background: var(--sage-soft); color: var(--sage); }
+  .tag-allergy { background: #fbe6e0; color: #a3401f; }
+  .tag-sibling { background: var(--maroon-soft); color: var(--maroon); }
+  .tag-policy { background: var(--surface-2); color: var(--ink-soft); font-weight: 500; }
+  .note-text { font-size: 12px; color: var(--ink-soft); font-style: italic; align-self: center; }
+
+  .entry-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-top: 1px dashed var(--border);
+    padding-top: 7px;
+  }
+  .contact-row {
+    display: flex;
+    gap: 8px;
+    font-size: 12.5px;
+    align-items: baseline;
+  }
+  .contact-rel {
+    width: 44px;
+    flex: none;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--ink-faint);
+    font-weight: 700;
+  }
+  .contact-name { color: var(--ink); font-weight: 500; }
+  .contact-phone { font-family: 'IBM Plex Mono', monospace; color: var(--ink-soft); margin-left: auto; }
+  .contact-empty { color: var(--ink-faint); font-style: italic; }
+
+  /* ── Under 6 reference ────────────────────────────── */
+  .under6-section {
+    margin-top: 44px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .under6-title {
+    font-family: 'Lora', serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 6px;
+    color: var(--ink-soft);
+  }
+  .under6-note {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin: 0 0 14px;
+    max-width: 60ch;
+  }
+  .ref-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 8px;
+  }
+  .ref-entry {
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12.5px;
+  }
+  .ref-name { display: block; font-weight: 600; color: var(--ink); }
+  .ref-meta { display: block; color: var(--ink-soft); font-size: 11.5px; margin-top: 1px; }
+
+  .report-footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--ink-faint);
+  }
+
+  @media (max-width: 560px) {
+    .summary-strip { grid-template-columns: repeat(2, 1fr); }
+    .entry-meta { gap: 12px; }
+    .contact-phone { margin-left: 0; }
+  }
+
+  @media print {
+    body { background: #fff; }
+    .print-btn { display: none; }
+    .entry { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+    .gender-section { break-before: page; }
+    .gender-section:first-of-type { break-before: auto; }
+    .summary-strip, .bracket { break-inside: avoid; }
+  }
+</style>
+
+<div class="page">
+  <div class="report-header">
+    <div class="header-text">
+      <div class="eyebrow">EEIS Al-Kauthar Saturday Madrasah</div>
+      <h1>Waiting List Contact Register</h1>
+      <div class="sub">Every active applicant, grouped by gender and age bracket, ordered longest-waiting first — ready to work through for outreach calls.</div>
+    </div>
+    <button class="print-btn" onclick="window.print()">Print register</button>
+  </div>
+
+  <div class="summary-strip">
+    <div class="summary-cell"><div class="summary-num">76</div><div class="summary-label">Active, ages 6–13</div></div>
+    <div class="summary-cell"><div class="summary-num">39</div><div class="summary-label">Boys</div></div>
+    <div class="summary-cell"><div class="summary-num">37</div><div class="summary-label">Girls</div></div>
+    <div class="summary-cell"><div class="summary-num">0</div><div class="summary-label">Aged 14 or over</div></div>
+  </div>
+
+  <div class="method-note">
+    <strong>Nobody on this list is aged 14 or over</strong> — 13 is the oldest age EEIS accepts from the waiting list, and that rule is enforced automatically. "Waiting" duration is measured from each child's <em>effective</em> queue date: for most children that's the date they applied; for a child who applied under age 6, it's their 6th birthday instead, so nobody gains an advantage by applying early. Generated 30 August 2026.
+  </div>
+
+  
+    <section class="gender-section boys">
+      <div class="gender-header">
+        <h2 class="gender-title">Boys</h2>
+        <span class="gender-total">39 on the list</span>
+      </div>
+      
+    <div class="bracket">
+      <h3 class="bracket-title">Ages 6–8<span class="bracket-count">20 waiting</span></h3>
+      <ol class="entry-list">
+    <li class="entry is-leader">
+      <div class="entry-rank">★</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Kamil Rawat</span>
+          <span class="entry-age">8 yrs old · b. 5 Mar 2018</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>15 Jun 2024</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>2 yrs 2 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Deferred</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Nafisa Rawat</span><span class='contact-phone'>0741 533 7067</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Dalil Rawat</span><span class='contact-phone'>07980 399 453</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">2</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Yunus Malik</span>
+          <span class="entry-age">6 yrs old · b. 9 Jun 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>9 Sep 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>11 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Farah</span><span class='contact-phone'>7858258785</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Ayaz Malik</span><span class='contact-phone'>07584 877745</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">3</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Abdullah Murshid</span>
+          <span class="entry-age">8 yrs old · b. 26 Mar 2018</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>11 Oct 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>10 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L2 Started</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Momel khan</span><span class='contact-phone'>07459570366</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Abdul rehman murshid</span><span class='contact-phone'>07405 914730</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">4</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Omar Narula</span>
+          <span class="entry-age">7 yrs old · b. 2 Nov 2018</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>22 Oct 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>10 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L3 Close to Completion</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Sokhiba Rakhimova</span><span class='contact-phone'>+447437914675</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Alok Narula</span><span class='contact-phone'>07588937326</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">5</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Mohammed Ishaq Parvez</span>
+          <span class="entry-age">6 yrs old · b. 26 Nov 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>4 Mar 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>9 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span><span class='tag tag-policy'>Under-6 policy — queue starts at 6th birthday</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Tahera Parvez</span><span class='contact-phone'>07540261557</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Mohammed Parvez</span><span class='contact-phone'>07540261557</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">6</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Mohammad Mudassar</span>
+          <span class="entry-age">6 yrs old · b. 31 Oct 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>6 Dec 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>8 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Yesmin Akter Opy</span><span class='contact-phone'>7737150622</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Abdul Shahed</span><span class='contact-phone'>7473671417</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">7</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Habib Barry</span>
+          <span class="entry-age">6 yrs old · b. 5 Aug 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>1 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>8 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Fatoumata Balde</span><span class='contact-phone'>7474712933</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Amadou Barry</span><span class='contact-phone'>—</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">8</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Ilan Ameerbeg</span>
+          <span class="entry-age">6 yrs old · b. 6 Jan 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>5 Oct 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>7 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span><span class='tag tag-sibling'>Sibling already at EEIS</span><span class='tag tag-policy'>Under-6 policy — queue starts at 6th birthday</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Yasmin Ameerbeg</span><span class='contact-phone'>07838621542</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Ridwan Ameerbeg</span><span class='contact-phone'>07403019725</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">9</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Haisam Muhammad</span>
+          <span class="entry-age">7 yrs old · b. 21 Jan 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>17 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>7 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Sadia Kanwal</span><span class='contact-phone'>07385321897</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Shahnawaz</span><span class='contact-phone'>07587486060</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">10</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Zayaan Uddi</span>
+          <span class="entry-age">7 yrs old · b. 2 Mar 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>26 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>7 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Shumi Begom</span><span class='contact-phone'>07904791586</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Kadir Uddin</span><span class='contact-phone'>07949515625</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">11</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">falak hussain</span>
+          <span class="entry-age">6 yrs old · b. 8 Apr 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>25 Apr 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>4 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Anwar Hussain</span><span class='contact-phone'>07984575572</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>sayeda farhana</span><span class='contact-phone'>07939845321</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">12</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">muhammad mustafa nawaz</span>
+          <span class="entry-age">6 yrs old · b. 2 Aug 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>29 Apr 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>4 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Miss Hina hashim</span><span class='contact-phone'>07380698598</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Nawaz Zakir hussain</span><span class='contact-phone'>+44 7463 338334</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">13</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Hina Hashim</span>
+          <span class="entry-age">6 yrs old · b. 2 Aug 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>16 May 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>3 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>hina hashim</span><span class='contact-phone'>07380698598</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Nawaz Zakir Hussain</span><span class='contact-phone'>+44 7463 338334</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">14</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Hamza Khan</span>
+          <span class="entry-age">6 yrs old · b. 15 Jun 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>19 Feb 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>2 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span><span class='tag tag-policy'>Under-6 policy — queue starts at 6th birthday</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Rehana Mahmood</span><span class='contact-phone'>07859206691</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Azam Khan</span><span class='contact-phone'>07429980189</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">15</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Ruzain Muhammad</span>
+          <span class="entry-age">6 yrs old · b. 22 Jun 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>17 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>2 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span><span class='tag tag-policy'>Under-6 policy — queue starts at 6th birthday</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Sadia Kanwal</span><span class='contact-phone'>07385321897</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Shahnawaz</span><span class='contact-phone'>07587486060</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">16</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Rayyan Rahman</span>
+          <span class="entry-age">6 yrs old · b. 16 Feb 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>24 Jun 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>2 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Polly Jahan Ali</span><span class='contact-phone'>07527230808</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Mahbub Rahman</span><span class='contact-phone'>07739 030717</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">17</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Salaar Muhammad Rahil</span>
+          <span class="entry-age">6 yrs old · b. 16 Jul 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>8 Sep 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 month</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Beginner</span><span class='tag tag-policy'>Under-6 policy — queue starts at 6th birthday</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Tehmina Waheed</span><span class='contact-phone'>7401232225</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Rahil Anwaar</span><span class='contact-phone'>7401232225</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">18</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Izhaan Ali</span>
+          <span class="entry-age">6 yrs old · b. 3 Dec 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>7 Aug 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>3 weeks</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Shazna Ali</span><span class='contact-phone'>07914008288</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Sufian Ali</span><span class='contact-phone'>07950475948</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">19</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Idrees Nazir</span>
+          <span class="entry-age">6 yrs old · b. 27 Apr 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>26 Aug 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>4 days</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Mehreen nazir</span><span class='contact-phone'>07825836103</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Sohaib Nazir</span><span class='contact-phone'>07970681442</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">20</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Adam Rekkam</span>
+          <span class="entry-age">6 yrs old · b. 29 Aug 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>29 Oct 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 day</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span><span class='tag tag-sibling'>Sibling already at EEIS</span><span class='tag tag-policy'>Under-6 policy — queue starts at 6th birthday</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Nassima Rekkam</span><span class='contact-phone'>07931181398</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Faycal Rekkam</span><span class='contact-phone'>07832383136</span></div></div>
+      </div>
+    </li></ol>
+    </div>
+    <div class="bracket">
+      <h3 class="bracket-title">Ages 9–11<span class="bracket-count">12 waiting</span></h3>
+      <ol class="entry-list">
+    <li class="entry is-leader">
+      <div class="entry-rank">★</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Yaqoob Ali</span>
+          <span class="entry-age">9 yrs old · b. 13 Apr 2017</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>4 Sep 2022</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>3 yrs 4 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Beginner</span><span class='tag tag-policy'>Under-6 policy — queue starts at 6th birthday</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Sabha Afzal-Ali</span><span class='contact-phone'>07841 327 963</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Waquas Ali</span><span class='contact-phone'>07814 730 034</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">2</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Aliyaz Farooqi</span>
+          <span class="entry-age">11 yrs old · b. 26 Jan 2015</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>27 Jul 2024</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>2 yrs 1 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Quran/Tajweed</span><span class='tag tag-allergy'>⚠ Nuts allergy</span><span class='tag tag-sibling'>Sibling already at EEIS</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Aisha Riaz</span><span class='contact-phone'>07859 244 244</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Maqsood Farooqi</span><span class='contact-phone'>07859 244 245</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">3</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Hassan Khaksar</span>
+          <span class="entry-age">10 yrs old · b. 24 Apr 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>25 Nov 2024</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 9 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Beginner</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Hafasa Azimi</span><span class='contact-phone'>07424 434854</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">4</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Hadi Faisal Culasy</span>
+          <span class="entry-age">10 yrs old · b. 30 Aug 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>7 Mar 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 5 mo</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Uzma Culasy</span><span class='contact-phone'>7762111443</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Faisal Culasy</span><span class='contact-phone'>7730572448</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">5</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Bilal Housseini</span>
+          <span class="entry-age">10 yrs old · b. 18 Sep 2015</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>17 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>7 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L7 Quran</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Bibi Housseini</span><span class='contact-phone'>07438358180</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Saifullah Housseini</span><span class='contact-phone'>07878660656</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">6</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Muhammad Rayed Aamir</span>
+          <span class="entry-age">9 yrs old · b. 3 Oct 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>7 Feb 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>6 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L4 Juz Amma</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Sana Bari</span><span class='contact-phone'>07761504437</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Muhammad Aamir Nawaz</span><span class='contact-phone'>07774247446</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">7</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Umeyir Gurgen</span>
+          <span class="entry-age">11 yrs old · b. 9 Jan 2015</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>6 Mar 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>5 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span><span class='tag tag-sibling'>Sibling already at EEIS</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Tugba Yilmaz</span><span class='contact-phone'>07562794490</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Ahmet Gurgen</span><span class='contact-phone'>+44 7456 164077</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">8</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Zeyd Gurgen</span>
+          <span class="entry-age">10 yrs old · b. 11 Aug 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>6 Mar 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>5 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span><span class='tag tag-sibling'>Sibling already at EEIS</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Tugba Yilmaz</span><span class='contact-phone'>07562794490</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Ahmet Gurgen</span><span class='contact-phone'>+44 7456 164077</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">9</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Muhammad Mustafa Waseem</span>
+          <span class="entry-age">9 yrs old · b. 15 Feb 2017</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>17 Mar 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>5 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L4 Juz Amma</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Qaisara Majeed</span><span class='contact-phone'>07415903830</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Shahid Waseem</span><span class='contact-phone'>07414786745</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">10</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Yusuf Murtaza</span>
+          <span class="entry-age">10 yrs old · b. 25 Jan 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>24 Apr 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>4 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Sadia Murtaza</span><span class='contact-phone'>07947455982</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Murtaza Amirali</span><span class='contact-phone'>007932861213</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">11</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Mohamed Kezouati</span>
+          <span class="entry-age">10 yrs old · b. 30 Dec 2015</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>25 Apr 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>4 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Naima brahim</span><span class='contact-phone'>07475200891</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Chaouki kezouati</span><span class='contact-phone'>07864249249</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">12</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Idris Finch</span>
+          <span class="entry-age">9 yrs old · b. 18 Dec 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>9 Jun 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>2 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Khatidja Kureeman</span><span class='contact-phone'>07379839487</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Alex (Malik) Finch</span><span class='contact-phone'>07841979597</span></div></div>
+      </div>
+    </li></ol>
+    </div>
+    <div class="bracket">
+      <h3 class="bracket-title">Ages 12–13<span class="bracket-count">7 waiting</span></h3>
+      <ol class="entry-list">
+    <li class="entry is-leader">
+      <div class="entry-rank">★</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Ayaan Uddin</span>
+          <span class="entry-age">12 yrs old · b. 14 Feb 2014</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>29 Dec 2024</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 8 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Qaida completed</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Shabana Uddin</span><span class='contact-phone'>077915 49739</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Adnaan Uddin</span><span class='contact-phone'>077915 49739</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">2</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Hashim Khan</span>
+          <span class="entry-age">12 yrs old · b. 19 Aug 2014</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>25 Jan 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 7 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Para 12</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Saeeda Khan</span><span class='contact-phone'>07452810338</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Tahir Khan</span><span class='contact-phone'>07460979808</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">3</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Muhammed Ali</span>
+          <span class="entry-age">13 yrs old · b. 23 Jul 2013</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>5 Mar 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 5 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-allergy'>⚠ Minor milk allergy and Asthma</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Nusrat Mumtaz</span><span class='contact-phone'>7376187376</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Muhammad Saqib Bashir</span><span class='contact-phone'>—</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">4</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Raheem Chaudhry</span>
+          <span class="entry-age">13 yrs old · b. 13 Aug 2013</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>1 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>8 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L4 Juz Amma</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Anna Chaudhry</span><span class='contact-phone'>07921141111</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Ehtsham Chaudhry</span><span class='contact-phone'>07985118616</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">5</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Ismail Hasan</span>
+          <span class="entry-age">13 yrs old · b. 5 Dec 2012</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>16 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>7 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L2-L3 Qaida</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Hamna Mateen</span><span class='contact-phone'>07713185172</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Mateen Hasan</span><span class='contact-phone'>07981111431</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">6</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Mahammad isam Vahora</span>
+          <span class="entry-age">12 yrs old · b. 2 Nov 2013</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>21 Apr 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>4 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Kausar vahora</span><span class='contact-phone'>7481777032</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Irfanbhai Vahora</span><span class='contact-phone'>07442 072412</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">7</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Aaliyan Hussain</span>
+          <span class="entry-age">12 yrs old · b. 28 Feb 2014</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>28 May 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>3 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Arooba Khalil</span><span class='contact-phone'>07487424902</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Zahid Hussain</span><span class='contact-phone'>07905487284</span></div></div>
+      </div>
+    </li></ol>
+    </div>
+    </section>
+
+  
+    <section class="gender-section girls">
+      <div class="gender-header">
+        <h2 class="gender-title">Girls</h2>
+        <span class="gender-total">37 on the list</span>
+      </div>
+      
+    <div class="bracket">
+      <h3 class="bracket-title">Ages 6–8<span class="bracket-count">20 waiting</span></h3>
+      <ol class="entry-list">
+    <li class="entry is-leader">
+      <div class="entry-rank">★</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Ziyana Muraj Ahmed</span>
+          <span class="entry-age">6 yrs old · b. 26 Jan 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>17 Nov 2024</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 9 mo</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Masuma Javad Muraj</span><span class='contact-phone'>7904046083</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Zeshaan Aftab Ahmed</span><span class='contact-phone'>07305 747374</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">2</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Haneefa Fatima Siddiqui</span>
+          <span class="entry-age">8 yrs old · b. 19 Jun 2018</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>10 Jul 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 1 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Learning Qaida</span><span class='note-text'>Learning Qaida at private class using Ajmal Al Qawaa&#x27;id, has learnt first 3 surahs from juz amma and surah al-fatiha.</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Mubeen Alikhan</span><span class='contact-phone'>7931657672</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Adil Siddiqui</span><span class='contact-phone'>07896711375</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">3</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Ayla Sofia Boodhoo</span>
+          <span class="entry-age">7 yrs old · b. 5 Jun 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>12 Jul 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 1 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Beginner</span><span class='note-text'>Na</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Sophie</span><span class='contact-phone'>7920054227</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Fahrad</span><span class='contact-phone'>07710621632</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">4</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Hira Nur Kablan</span>
+          <span class="entry-age">7 yrs old · b. 14 Dec 2018</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>25 Aug 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Elif-ba finished 1 time G2</span><span class='note-text'>Elif-ba finished 1 time</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Fatma Nur Kablan</span><span class='contact-phone'>—</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Muhammet Akif Kablan</span><span class='contact-phone'>—</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">5</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">MIRYAM AZIZ</span>
+          <span class="entry-age">6 yrs old · b. 6 Oct 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>12 Sep 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>11 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 1 - Complete Beginner - wants to Start Qaida</span><span class='note-text'>She is in All Saint Benhillton School, Year 1.</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>STEFANIE AZIZ</span><span class='contact-phone'>7715434480</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>SLIMANE AZIZ</span><span class='contact-phone'>7808856191</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">6</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Aishia Rahman</span>
+          <span class="entry-age">7 yrs old · b. 28 Jul 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>13 Sep 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>11 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 1 - Complete Beginner - wants to Start Qaida</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>samiah rahman</span><span class='contact-phone'>7832305535</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>saifur rahman</span><span class='contact-phone'>7533550578</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">7</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Naïrah Rusmaully</span>
+          <span class="entry-age">6 yrs old · b. 14 Aug 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>28 Dec 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>8 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 1 - Complete Beginner - wants to Start Qaida</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Dr Zarah Kaudeer Rusmaully</span><span class='contact-phone'>7340618559</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Dr Muhammad Noordin Rusmaully</span><span class='contact-phone'>07930 712640</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">8</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Halima Chaudhry</span>
+          <span class="entry-age">7 yrs old · b. 20 Jul 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>1 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>8 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span><span class='tag tag-sibling'>Sibling already at EEIS</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Anna Chaudhry</span><span class='contact-phone'>07921141111</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Ehtsham Chaudhry</span><span class='contact-phone'>07985118616</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">9</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Anaizah Hasan</span>
+          <span class="entry-age">8 yrs old · b. 6 Jan 2018</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>16 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>7 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 2 - Started - has started Qaida and is half way through.</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Hamna Mateen</span><span class='contact-phone'>7713185172</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Mateen Hasan</span><span class='contact-phone'>7981111431</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">10</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Aisha Rahman</span>
+          <span class="entry-age">7 yrs old · b. 29 Jul 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>3 Feb 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>6 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span><span class='tag tag-sibling'>Sibling already at EEIS</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Samiah Rahman</span><span class='contact-phone'>07832305535</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Saifur Rahman</span><span class='contact-phone'>07533550578</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">11</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Mirha Aamir</span>
+          <span class="entry-age">6 yrs old · b. 1 Nov 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>7 Feb 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>6 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L4 Juz Amma</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Sana Bari</span><span class='contact-phone'>0776154437</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Muhammad Aamir Nawaz</span><span class='contact-phone'>07774247446</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">12</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Aaisha Asla</span>
+          <span class="entry-age">6 yrs old · b. 23 Mar 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>4 Aug 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>5 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>None</span><span class='note-text'>None</span><span class='tag tag-policy'>Under-6 policy — queue starts at 6th birthday</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Ramona</span><span class='contact-phone'>—</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Walid Asla</span><span class='contact-phone'>—</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">13</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Sara Chowdhury</span>
+          <span class="entry-age">6 yrs old · b. 30 Apr 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>12 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>4 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L1 Beginner</span><span class='tag tag-policy'>Under-6 policy — queue starts at 6th birthday</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Samira Chowdhury</span><span class='contact-phone'>07361957926</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Dabir Chowdhury</span><span class='contact-phone'>07742195804</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">14</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Mariam Chowdhury</span>
+          <span class="entry-age">6 yrs old · b. 3 Jul 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>2 May 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>4 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Misstaha Chowdhury</span><span class='contact-phone'>07538975363</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Tofayel Chowdhury</span><span class='contact-phone'>07538975363</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">15</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Mehar Saeed</span>
+          <span class="entry-age">7 yrs old · b. 29 Aug 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>13 May 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>3 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Mehwish</span><span class='contact-phone'>Ali</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Junaid Saeed</span><span class='contact-phone'>07309089077</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">16</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">MARWA Ahmed</span>
+          <span class="entry-age">6 yrs old · b. 15 Jun 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>5 Jun 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>2 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Fahmida yesmin</span><span class='contact-phone'>07903032495</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Mohammed Shibbir Ahmed</span><span class='contact-phone'>07393 745914</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">17</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Noora  Abdia Miah</span>
+          <span class="entry-age">6 yrs old · b. 4 Nov 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>4 Jul 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 month</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Shahi Aktar</span><span class='contact-phone'>07402309122</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Mohammed Shahjan Miah</span><span class='contact-phone'>07903245422</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">18</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Amelia Ahmad</span>
+          <span class="entry-age">7 yrs old · b. 13 Jan 2019</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>5 Jul 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 month</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Maria</span><span class='contact-phone'>07557971660</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Farrukh</span><span class='contact-phone'>07557971660</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">19</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Hannah Dahlia Ullah</span>
+          <span class="entry-age">6 yrs old · b. 8 Jul 2020</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>21 Mar 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 month</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Beginner</span><span class='note-text'>None</span><span class='tag tag-policy'>Under-6 policy — queue starts at 6th birthday</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Nazmeara Khatun</span><span class='contact-phone'>07583 080924</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Maney Ullah</span><span class='contact-phone'>07977 571176</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">20</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Rahma Culasy</span>
+          <span class="entry-age">7 yrs old · b. 8 Oct 2018</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>28 Aug 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>2 days</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Uzma Culasy</span><span class='contact-phone'>07762111443</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Faisal culasy</span><span class='contact-phone'>+44 7730 572448</span></div></div>
+      </div>
+    </li></ol>
+    </div>
+    <div class="bracket">
+      <h3 class="bracket-title">Ages 9–11<span class="bracket-count">13 waiting</span></h3>
+      <ol class="entry-list">
+    <li class="entry is-leader">
+      <div class="entry-rank">★</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Sumaya Ashrafi</span>
+          <span class="entry-age">9 yrs old · b. 8 Oct 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>8 Oct 2022</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>3 yrs 10 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>HOLD - Online teacher</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Sharifa</span><span class='contact-phone'>07306 296 999</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Syaeed Tamim</span><span class='contact-phone'>0794 040 6682</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">2</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Zaynah Ahmed</span>
+          <span class="entry-age">9 yrs old · b. 16 Jul 2017</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>28 Sep 2024</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 11 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L2 Qaida</span><span class='tag tag-sibling'>Sibling already at EEIS</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Jarana Begum</span><span class='contact-phone'>07984 742 017</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Jabed Ahmed</span><span class='contact-phone'>07949 095 139</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">3</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Sarah Aadil</span>
+          <span class="entry-age">9 yrs old · b. 24 Nov 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>1 Nov 2024</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 10 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Olive Tree Study</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Nik Athirah</span><span class='contact-phone'>07412 738 169</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Aadil Marzani</span><span class='contact-phone'>07454 754 354</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">4</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Zoya Uddin</span>
+          <span class="entry-age">10 yrs old · b. 19 Feb 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>29 Dec 2024</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>1 yr 8 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Qaida completed</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Shabana Uddin</span><span class='contact-phone'>077915 49739</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Adnaan Uddin</span><span class='contact-phone'>077915 49739</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">5</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Eshaal Tanveer Siddiqui</span>
+          <span class="entry-age">10 yrs old · b. 1 Jan 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>18 Oct 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>10 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 2 - Started - has started Qaida and is half way through.</span><span class='tag tag-allergy'>⚠ She has Williams Syndrome and is doing lesson online.</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Tazyeen Tanveer</span><span class='contact-phone'>7450788939</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Tanveer Alam</span><span class='contact-phone'>7722399715</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">6</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Jamia Jannat</span>
+          <span class="entry-age">10 yrs old · b. 4 Jan 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>21 Oct 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>10 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L7 Quran</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Khadiza Akhtar</span><span class='contact-phone'>7466143370</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Belal Ahmad</span><span class='contact-phone'>07895223321</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">7</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Aisha Narula</span>
+          <span class="entry-age">11 yrs old · b. 26 Dec 2014</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>22 Oct 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>10 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 5 - Is half way through Juz Amma</span><span class='note-text'>She has been studying at Uxbridge (MCCU) for more than 1 year - two classes a week</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Sokhiba Rakhimova</span><span class='contact-phone'>447438000000</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Alok Narula</span><span class='contact-phone'>7588937326</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">8</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Mina Mangal</span>
+          <span class="entry-age">11 yrs old · b. 18 Jan 2015</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>15 Nov 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>9 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 2 - Started - has started Qaida and is half way through.</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Fatima ghafoori</span><span class='contact-phone'>7564819679</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Farooq khan mangal</span><span class='contact-phone'>7564819679</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">9</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Ayisha Mangal</span>
+          <span class="entry-age">9 yrs old · b. 5 May 2017</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>15 Nov 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>9 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 1 - Complete Beginner - wants to Start Qaida</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Fatima Ghafoori</span><span class='contact-phone'>7564819679</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Farooq khan mangal</span><span class='contact-phone'>7564819679</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">10</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Mahnoor Murshid</span>
+          <span class="entry-age">11 yrs old · b. 5 Dec 2014</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>20 Feb 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>6 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 5 - Is half way through Juz Amma, Level 7 - Completed Juz Amma and now on Quran</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Momel khan</span><span class='contact-phone'>7459570366</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Abdul rehman murshid</span><span class='contact-phone'>+44 7405 914730</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">11</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Safiya Bessissou</span>
+          <span class="entry-age">9 yrs old · b. 21 May 2017</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>19 Apr 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>4 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Natalie Smart</span><span class='contact-phone'>07713835003</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Bassil Bessissou</span><span class='contact-phone'>07984687304</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">12</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Huda Vahora</span>
+          <span class="entry-age">9 yrs old · b. 5 Sep 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>21 Apr 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>4 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Kausar vahora</span><span class='contact-phone'>7481777032</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Irfanbhai Vahora</span><span class='contact-phone'>07442 072412</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">13</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Khatidja Kureeman</span>
+          <span class="entry-age">9 yrs old · b. 24 Dec 2016</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>9 Jun 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>2 months</span>
+        </div>
+        <div class="entry-notes"></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Khatidja Kureeman</span><span class='contact-phone'>07379839487</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Alex (Malik) Finch</span><span class='contact-phone'>07841979597</span></div></div>
+      </div>
+    </li></ol>
+    </div>
+    <div class="bracket">
+      <h3 class="bracket-title">Ages 12–13<span class="bracket-count">4 waiting</span></h3>
+      <ol class="entry-list">
+    <li class="entry is-leader">
+      <div class="entry-rank">★</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Zara Farooqi</span>
+          <span class="entry-age">13 yrs old · b. 13 Dec 2012</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>27 Jul 2024</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>2 yrs 1 mo</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Finished Quran</span><span class='tag tag-allergy'>⚠ Nuts allergy</span><span class='tag tag-sibling'>Sibling already at EEIS</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Aisha Riaz</span><span class='contact-phone'>07859 244 244</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Maqsood Farooqi</span><span class='contact-phone'>07859 244 244</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">2</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">MIRA AZIZ</span>
+          <span class="entry-age">12 yrs old · b. 17 Mar 2014</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>12 Sep 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>11 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 1 - Complete Beginner - wants to Start Qaida</span><span class='note-text'>She is right now at Carshalton Girls School; she is in Year 7</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>STEFANIE AZIZ</span><span class='contact-phone'>7715434480</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>SLIMANE AZIZ</span><span class='contact-phone'>7808856191</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">3</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Maryam Waseem</span>
+          <span class="entry-age">12 yrs old · b. 1 Oct 2013</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>20 Sep 2025</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>11 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>Level 7 - Completed Juz Amma and now on Quran</span><span class='note-text'>Currently studying Quran at home</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Qaisara Majeed</span><span class='contact-phone'>7415903830</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Shahid Waseem</span><span class='contact-phone'>7414786745</span></div></div>
+      </div>
+    </li>
+    <li class="entry">
+      <div class="entry-rank">4</div>
+      <div class="entry-main">
+        <div class="entry-headline">
+          <span class="entry-name">Sophia Chaudhry</span>
+          <span class="entry-age">13 yrs old · b. 11 Feb 2013</span>
+        </div>
+        <div class="entry-meta">
+          <span class="meta-item"><span class="meta-label">Applied</span>1 Jan 2026</span>
+          <span class="meta-item meta-wait"><span class="meta-label">Waiting</span>8 months</span>
+        </div>
+        <div class="entry-notes"><span class='tag tag-level'>L4 Juz Amma</span><span class='tag tag-sibling'>Sibling already at EEIS</span></div>
+        <div class="entry-contact"><div class='contact-row'><span class='contact-rel'>Mother</span><span class='contact-name'>Anna Chaudhry</span><span class='contact-phone'>07921141111</span></div><div class='contact-row'><span class='contact-rel'>Father</span><span class='contact-name'>Ehtsham Chaudhry</span><span class='contact-phone'>07985118616</span></div></div>
+      </div>
+    </li></ol>
+    </div>
+    </section>
+
+  
+    <section class="under6-section">
+      <h2 class="under6-title">Under 6 — Policy Hold (7)</h2>
+      <p class="under6-note">Not yet contactable — by EEIS policy their place in the queue only begins on their 6th birthday, shown below. Listed for reference only.</p>
+      <ul class="ref-list"><li class="ref-entry"><span class="ref-name">Alishba Rakib Radhva</span><span class="ref-meta">Female · b. 26 Sep 2020 · turns 6 on 26 Sep 2026</span></li><li class="ref-entry"><span class="ref-name">Muhammed Ali Hussein BHACKAURALLY</span><span class="ref-meta">Male · b. 1 Oct 2020 · turns 6 on 1 Oct 2026</span></li><li class="ref-entry"><span class="ref-name">Zeynab Uddin</span><span class="ref-meta">Female · b. 8 Oct 2020 · turns 6 on 8 Oct 2026</span></li><li class="ref-entry"><span class="ref-name">Sanayah Mopelola-Adunni Salaudeen</span><span class="ref-meta">Female · b. 20 Oct 2020 · turns 6 on 20 Oct 2026</span></li><li class="ref-entry"><span class="ref-name">Nyimanding Ceesay</span><span class="ref-meta">Female · b. 26 Oct 2020 · turns 6 on 26 Oct 2026</span></li><li class="ref-entry"><span class="ref-name">Amin Ahmed</span><span class="ref-meta">Male · b. 27 Jan 2021 · turns 6 on 27 Jan 2027</span></li><li class="ref-entry"><span class="ref-name">Navier Nazakat Hossain</span><span class="ref-meta">Male · b. 6 Apr 2021 · turns 6 on 6 Apr 2027</span></li></ul>
+    </section>
+
+  <div class="report-footer">
+    EEIS Al-Kauthar Saturday Madrasah — Waiting List Contact Register — generated from the live dashboard, 30 August 2026.
+  </div>
+</div>
