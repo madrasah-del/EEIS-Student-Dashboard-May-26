@@ -5809,6 +5809,7 @@ Jazakallah Khayran.`
           <div style="font-weight:700;font-size:var(--font-md);cursor:pointer;" onclick="if(typeof openWLDetail==='function')openWLDetail(${WAITING_LIST_DATA.indexOf(c)})" title="Tap for full details">${c.Firstname} ${c.Surname}</div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;">
             <span class="chip ${c.Gender==='Male'?'chip-B2':'chip-G1'}">${c.Gender==='Male'?'♂':'♀'}</span>
+            ${typeof _p10Duration==='function'&&_p10Duration(c.effectiveDate)?`<span class="chip" style="background:var(--maroon-soft,#f3e4e1);color:var(--maroon,#7a1f2b);font-weight:700;" title="Time waiting, from ${c.effectiveDate}">⏳ ${_p10Duration(c.effectiveDate)}</span>`:''}
             ${c.hasSibling?'<span class="sibling-badge">⚭ sibling</span>':''}
             ${c.isPolicyEffect?'<span class="policy-badge">⚠ policy</span>':''}
             ${c._agedOut?`<span class="chip" style="background:#fee2e2;color:#b91c1c;font-weight:700;">⏰ Aged out (${c.calculatedAge})</span><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);padding:1px 6px;" onclick="_wlDismissApplicant('${(typeof _wlKey==='function'?_wlKey(c.Firstname,c.Surname):'').replace(/'/g,"\\'")}','${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")}')">🚫 Remove</button>`:''}
@@ -10946,6 +10947,7 @@ function _p10Duration(effDate) {
   if (weeks >= 1) return weeks + ' week' + (weeks !== 1 ? 's' : '');
   return days + ' day' + (days !== 1 ? 's' : '');
 }
+window._p10Duration = _p10Duration; // reused by the row-list waiting pill, outside this IIFE
 
 function _p10FmtDate(d) {
   if (!d || !/^\d{4}-\d{2}-\d{2}/.test(d)) return d || '—';
@@ -11043,11 +11045,11 @@ function _p11PositionMsg(c) {
 
 // ── Message 2: still interested? book an enrolment meeting ──────
 const _P11_MADRASAH_INFO =
-`EEIS MADRASAH UPDATES
+`Below is some key information relating to the Madrasah. If you have any further questions, you're welcome to email us or raise them on the day of registration.
 
 Madrasah will reopen on Saturday 12th September 2026, 10.30am – Zuhr.
 
-Madrasah Fees (New Students): £280 for the academic year — paid in full (preferred), or in two instalments: £150 by Saturday 12th September and £130 by 1st January 2027.
+Madrasah Fees (New Students): £280 for the academic year.
 (For reference, if you already have another child currently attending EEIS Madrasah, their existing-student fee is £260.)
 
 Homework Diaries: please check your child's homework diary every week for homework and comments — it's also how teachers and parents communicate.
@@ -11062,7 +11064,27 @@ Safeguarding: doors close at 10.45am and reopen from 1.00pm. If you arrive after
 
 function _p11InterestMsg(c) {
   const parentName = c.Mother.Name || c.Father.Name || 'Parent';
-  return `Assalamu Alaikum ${parentName},\n\nThis is EEIS Al-Kauthar Madrasah. ${c.Firstname} is currently #${c._queuePos || '?'} on our waiting list in the ${c.bracket} age group.\n\nWe're reaching out to check: is ${c.Firstname} still interested in joining the Madrasah this academic year (2026-2027)?\n\nIf so, we'd like to invite you in to meet us and complete enrolment. Please let us know your availability, or if a time has already been arranged:\n\nProposed date & time: __________\n\nJazakAllah Khayran for letting us know either way.\n\nEEIS Al-Kauthar Madrasah\n\n—\n\n${_P11_MADRASAH_INFO}`;
+  return `Assalamu Alaikum ${parentName},
+
+This is EEIS Al-Kauthar Madrasah. We're pleased to let you know that a position has become available for ${c.Firstname} in the ${c.bracket} age group, and we wanted to check whether you would be interested in taking up this place for the current academic year (2026-2027).
+
+Registration: please come in to register ${c.Firstname} on:
+
+Date & time: __________
+
+Classes are due to begin on Saturday 12th September 2026.
+
+Fees: fees are payable on the day of registration. We ask that £280 (the full year) is paid in one go where possible, as this is our preferred option and means we don't need to follow up with a reminder in January. If paying in two instalments, a minimum of £150 is required at registration, with the remaining £130 due by 1st January 2027.
+
+If you no longer wish to take up this place, please reply to this email to let us know. If we don't hear back from you, we will assume the place is no longer needed and offer it to the next family on our waiting list.
+
+JazakAllah Khayran.
+
+EEIS Al-Kauthar Madrasah
+
+—
+
+${_P11_MADRASAH_INFO}`;
 }
 
 function _p11Send(channel, msgType, idx) {
@@ -11078,7 +11100,7 @@ function _p11Send(channel, msgType, idx) {
   } else {
     const subject = msgType === 'position'
       ? 'Waiting List Update — ' + c.Firstname + ' ' + c.Surname
-      : 'Still interested? — ' + c.Firstname + ' ' + c.Surname + ' — EEIS Al-Kauthar Madrasah';
+      : 'Madrasah Position Available — ' + c.Firstname + ' ' + c.Surname;
     const to = email ? encodeURIComponent(email) : '';
     window.location.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(msg.replace(/\n/g, '\r\n'));
   }
@@ -11115,7 +11137,7 @@ window.openWLMessageChooser = function(idx) {
         <button onclick="document.getElementById('p11-msg-chooser').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);">✕</button>
       </div>
       ${row('📍', 'Position Update', 'Tells the parent where their child currently stands on the list.', 'position')}
-      ${row('❓', 'Still Interested?', 'Checks they still want a place this year, asks them to book an enrolment meeting, and includes the latest Madrasah info.', 'interest')}
+      ${row('🎓', 'Position Available', 'Offers the family the place, asks them to register (with a space for date/time), states the fees and that they\'re due at registration, and asks for a reply if declining.', 'interest')}
       ${!phone && !email ? '<div style="font-size:12px;color:var(--red);text-align:center;margin-top:6px;">No phone or email on file for this family.</div>' : ''}
     </div>`;
   document.body.appendChild(ov);
