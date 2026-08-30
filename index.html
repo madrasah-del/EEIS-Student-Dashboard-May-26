@@ -6621,7 +6621,12 @@ handleOrientation();
 document.addEventListener('touchmove', function(e) {
   const scrollable = e.target.closest(
     '.modal-body, .chase-history-list, .debt-family-body-v2, ' +
-    '.inst-table, .staff-grid, .wl-list, .panel, .nav'
+    '.inst-table, .staff-grid, .wl-list, .panel, .nav, ' +
+    // Any dynamically-created overlay that declares its own scroll (Enrol form,
+    // waiting-list detail, Excel import, etc.) — covers overlays added after
+    // this whitelist was written, so a new one never silently traps scroll again.
+    '[style*="overflow-y:auto"], [style*="overflow-y: auto"], ' +
+    '[style*="overflow:auto"], [style*="overflow: auto"]'
   );
   if (scrollable) return; // allow scroll inside these containers (and nav horizontal scroll)
   if (window.scrollY === 0) e.preventDefault(); // block only when at top
@@ -10224,6 +10229,37 @@ madrasah@eeis.co.uk`;
 // Google Form responses live via IMPORTRANGE. No Apps Script change.
 const _WL_BAKED_COUNT = (typeof WAITING_LIST_DATA !== 'undefined') ? WAITING_LIST_DATA.length : 52;
 
+// ── Academic-year age eligibility ───────────────────────────────
+// EEIS rule (confirmed by Javeed, 30 Aug 2026): a child must be 6 years old
+// on 1 September to start that academic year (at the September intake, or
+// the following January intake within the same academic year) — otherwise
+// they wait for the January intake of the NEXT academic year. Symmetrically,
+// a child who turns 14 before that 1 September must graduate — they cannot
+// restart the year. Age is measured against the nearest 1 September on or
+// after today, not the raw current-date age, so nobody is shown as eligible
+// (or aged-out) before it's actually true for admissions purposes.
+function _ayCutoff(today) {
+  const y = (today || new Date()).getFullYear();
+  const sept1 = new Date(y, 8, 1); // September = month index 8
+  return (today || new Date()) <= sept1 ? sept1 : new Date(y + 1, 8, 1);
+}
+function _ayAge(dob, today) {
+  const t = today || new Date();
+  const cutoff = _ayCutoff(t);
+  const b = new Date(dob);
+  let age = cutoff.getFullYear() - b.getFullYear();
+  const hadBirthday = (cutoff.getMonth() > b.getMonth()) ||
+    (cutoff.getMonth() === b.getMonth() && cutoff.getDate() >= b.getDate());
+  if (!hadBirthday) age--;
+  return age;
+}
+// Format a Date's LOCAL calendar date as YYYY-MM-DD — never use
+// .toISOString() for a date-only value: it converts to UTC first, which
+// silently shifts the date back a day for any UK viewer during BST.
+function _ayIso(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 // Match key: first word of first name + surname, cleaned & lowercased
 function _wlKey(fn, sn) {
   const f = String(fn || '').replace(/[*~^?]/g, ' ').trim().toLowerCase().split(/\s+/)[0] || '';
@@ -10307,14 +10343,18 @@ function _wlEntryFromForm(r, idx, child) {
   const subRaw = g(idx.time);
   const submitted = (subRaw.match(/(\d{4}-\d{2}-\d{2})/) || [,''])[1] || new Date().toISOString().slice(0, 10);
   let age = 0;
-  if (dob) {
-    const b = new Date(dob), now = new Date();
-    age = now.getFullYear() - b.getFullYear() - ((now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) ? 1 : 0);
-  }
-  const bracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-15';
+  if (dob) age = _ayAge(dob);
+  const bracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-13';
   const isPolicy = age < 6;
   let effective = submitted;
-  if (isPolicy && dob) { const b = new Date(dob); effective = (b.getFullYear() + 6) + dob.slice(4); }
+  if (isPolicy && dob) {
+    // Queue from whichever comes first: their 6th birthday, or the 1 Sept
+    // on/after it (since eligibility is academic-year, not birthday, based)
+    const b = new Date(dob);
+    const sixthBday = new Date(b.getFullYear() + 6, b.getMonth(), b.getDate());
+    const eligibleFrom = _ayCutoff(sixthBday);
+    effective = _ayIso(eligibleFrom);
+  }
   const gender = /^f/i.test(g(idx.gender)) ? 'Female' : 'Male';
   return {
     Firstname: child.fn.replace(/\s+/g, ' '), Surname: child.sn.replace(/\s+/g, ' '),
@@ -10480,29 +10520,33 @@ function _wlShowNewApplicants(entries) {
   document.body.appendChild(ov);
 }
 
-// Under-6 policy refresh: recompute age & bracket from DOB so children who
-// have turned 6 move into the 6-8 bracket automatically. Their queue position
-// uses effectiveDate (their 6th birthday), so applying early gains nothing.
+// Academic-year eligibility refresh: recompute age & bracket from DOB using
+// the 1-September rule (see _ayAge above), so children move brackets exactly
+// when EEIS's own admissions rule says they become eligible — not on their
+// literal birthday. Their queue position uses effectiveDate (the September
+// they become eligible for), so applying early gains no advantage.
 function _wlRefreshAges() {
   const now = new Date();
   for (const c of WAITING_LIST_DATA) {
     if (!c.DOB || !/^\d{4}-\d{2}-\d{2}/.test(c.DOB)) continue;
     const b = new Date(c.DOB);
-    const age = now.getFullYear() - b.getFullYear() - ((now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) ? 1 : 0);
+    const age = _ayAge(c.DOB, now);
     if (age === c.calculatedAge && c.bracket !== 'Under 6') continue;
     c.calculatedAge = age;
     c.preciseAge = age + ' yrs';
-    const newBracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-15';
+    const newBracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-13';
     if (c.bracket !== newBracket) {
-      // Policy children join the 6-8 queue from their 6th birthday,
-      // not their original application date
+      // Policy children join the queue from whichever September their
+      // academic-year eligibility actually starts, not their 6th birthday
       if (c.bracket === 'Under 6' && newBracket === '6-8') {
-        c.effectiveDate = (b.getFullYear() + 6) + c.DOB.slice(4, 10);
+        const sixthBday = new Date(b.getFullYear() + 6, b.getMonth(), b.getDate());
+        c.effectiveDate = _ayIso(_ayCutoff(sixthBday));
       }
       c.bracket = newBracket;
       c.isPolicyEffect = age < 6;
     }
-    // 13 is the oldest age a child can still be accepted — 14+ is aged out
+    // 13 is the oldest age a child can still be accepted (must not turn 14
+    // before the 1 September cutoff) — 14+ as of that cutoff is aged out
     c._agedOut = c.Status === 'Waiting' && age > 13;
   }
 }
