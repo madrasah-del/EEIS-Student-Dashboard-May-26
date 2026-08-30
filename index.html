@@ -5706,12 +5706,17 @@ function renderWaitlist() {
   });
 
   // Bracket position — the SECONDARY number: where they stand within their
-  // own age-group cohort specifically.
+  // own age-group cohort, for their own gender specifically (a boy's count
+  // and a girl's count in the same bracket are two separate sequences —
+  // otherwise a boy could jump straight from 1st to 6th purely because
+  // girls occupied positions 2-5, which is confusing since boys and girls
+  // are always displayed in separate sub-groups on screen).
   const bracketPositions = {};
   sorted.forEach(c => {
-    if (!bracketPositions[c.bracket]) bracketPositions[c.bracket] = 0;
-    bracketPositions[c.bracket]++;
-    c._queuePos = bracketPositions[c.bracket];
+    const key = c.Gender + '|' + c.bracket;
+    if (!bracketPositions[key]) bracketPositions[key] = 0;
+    bracketPositions[key]++;
+    c._queuePos = bracketPositions[key];
   });
 
   // Find bracket leaders (gold star)
@@ -5814,9 +5819,18 @@ Jazakallah Khayran.`
       const levelBadge = `<span style="font-size:9px;padding:1px 5px;border-radius:5px;background:var(--warm);color:var(--ink2);">${levelCat}</span>`;
 
       html += `<tr class="${rowCls}"${c._agedOut?' style="opacity:.55;"':''}>
-        <td class="sticky-col" style="text-align:center;min-width:56px;">
-          <div class="queue-pos ${c._overallPos===1?'first':c._overallPos===2?'second':''}" title="#${c._overallPos} of all ${c.Gender==='Male'?'boys':'girls'} waiting, by how long they've waited">${c._overallPos}<sup>${c._overallPos===1?'st':c._overallPos===2?'nd':c._overallPos===3?'rd':'th'}</sup></div>
-          <div style="font-size:9px;color:var(--ink3);margin-top:1px;" title="Position within the ${c.bracket} age group specifically">${c._queuePos}${c._queuePos===1?'st':c._queuePos===2?'nd':c._queuePos===3?'rd':'th'} in ${c.bracket}</div>
+        <td class="sticky-col" style="text-align:center;min-width:84px;">
+          <div style="display:flex;align-items:flex-end;justify-content:center;gap:5px;">
+            <div>
+              <div class="queue-pos ${c._overallPos===1?'first':c._overallPos===2?'second':''}" title="#${c._overallPos} of all ${c.Gender==='Male'?'boys':'girls'} waiting, by how long they've waited">${c._overallPos}<sup>${c._overallPos===1?'st':c._overallPos===2?'nd':c._overallPos===3?'rd':'th'}</sup></div>
+              <div style="font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;">${c.Gender==='Male'?'boys':'girls'}</div>
+            </div>
+            <div style="color:var(--border);font-size:16px;line-height:1;padding-bottom:2px;">/</div>
+            <div>
+              <div class="queue-pos" style="color:var(--ink3);" title="Position within the ${c.bracket} age group specifically">${c._queuePos}<sup>${c._queuePos===1?'st':c._queuePos===2?'nd':c._queuePos===3?'rd':'th'}</sup></div>
+              <div style="font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;">in ${c.bracket}</div>
+            </div>
+          </div>
           ${isLeader ? '<div class="gold-star-badge">★</div>' : ''}
         </td>
         <td>
@@ -10277,6 +10291,21 @@ function _ayAge(dob, today) {
 function _ayIso(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+// A child's queue date is whichever is LATER: the date they applied, or the
+// date they actually became eligible (the 1-Sept cutoff following their 6th
+// birthday). This must be recomputed unconditionally from DOB every time —
+// not just when a child's bracket happens to change — otherwise a child who
+// applied at, say, age 4 but has since turned 6 keeps their raw application
+// date as their queue position forever, jumping ahead of children who
+// applied later but were already 6 at the time. Applying early must never
+// give any advantage over a family who simply waited until eligible.
+function _wlEffectiveDate(dob, dateSubmitted) {
+  const b = new Date(dob);
+  const sixthBday = new Date(b.getFullYear() + 6, b.getMonth(), b.getDate());
+  const eligibleFrom = _ayIso(_ayCutoff(sixthBday));
+  const sub = (dateSubmitted || '').slice(0, 10);
+  return (sub && sub > eligibleFrom) ? sub : eligibleFrom;
+}
 
 // Match key: first word of first name + surname, cleaned & lowercased
 function _wlKey(fn, sn) {
@@ -10364,15 +10393,7 @@ function _wlEntryFromForm(r, idx, child) {
   if (dob) age = _ayAge(dob);
   const bracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-13';
   const isPolicy = age < 6;
-  let effective = submitted;
-  if (isPolicy && dob) {
-    // Queue from whichever comes first: their 6th birthday, or the 1 Sept
-    // on/after it (since eligibility is academic-year, not birthday, based)
-    const b = new Date(dob);
-    const sixthBday = new Date(b.getFullYear() + 6, b.getMonth(), b.getDate());
-    const eligibleFrom = _ayCutoff(sixthBday);
-    effective = _ayIso(eligibleFrom);
-  }
+  const effective = dob ? _wlEffectiveDate(dob, submitted) : submitted;
   const gender = /^f/i.test(g(idx.gender)) ? 'Female' : 'Male';
   return {
     Firstname: child.fn.replace(/\s+/g, ' '), Surname: child.sn.replace(/\s+/g, ' '),
@@ -10547,20 +10568,15 @@ function _wlRefreshAges() {
   const now = new Date();
   for (const c of WAITING_LIST_DATA) {
     if (!c.DOB || !/^\d{4}-\d{2}-\d{2}/.test(c.DOB)) continue;
-    const b = new Date(c.DOB);
     const age = _ayAge(c.DOB, now);
     c.calculatedAge = age;
     c.preciseAge = age + ' yrs';
-    const newBracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-13';
-    if (c.bracket !== newBracket) {
-      // Policy children join the queue from whichever September their
-      // academic-year eligibility actually starts, not their 6th birthday
-      if (c.bracket === 'Under 6' && newBracket === '6-8') {
-        const sixthBday = new Date(b.getFullYear() + 6, b.getMonth(), b.getDate());
-        c.effectiveDate = _ayIso(_ayCutoff(sixthBday));
-      }
-      c.bracket = newBracket;
-    }
+    c.bracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-13';
+    // Always recomputed from DOB + DateSubmitted, not just on a bracket
+    // change — see _wlEffectiveDate above for why this must be unconditional.
+    // Skip Senior Candidates: their DateSubmitted is the literal string
+    // "Graduated", not a date, and they're not part of the live queue.
+    if (c.Status === 'Waiting') c.effectiveDate = _wlEffectiveDate(c.DOB, c.DateSubmitted);
     // isPolicyEffect and _agedOut must be recomputed every pass, not just
     // when the bracket changes — otherwise a child whose bracket was
     // already correct (e.g. baked directly as '6-8') can be left showing
