@@ -5843,6 +5843,7 @@ Jazakallah Khayran.`
             ${c.hasSibling?'<span class="sibling-badge">⚭ sibling</span>':''}
             ${c.isPolicyEffect?'<span class="policy-badge">⚠ not yet 6</span>':''}
             ${c._earlyBy?`<span class="chip" style="background:#fff3cd;color:#8a6210;font-weight:700;" title="Applied before their 6th birthday — their queue position counts from ${c.effectiveDate}, not their application date">🕐 Applied ${c._earlyBy} early</span>`:''}
+            ${!c.isPolicyEffect&&c._admissibleFrom&&new Date(c._admissibleFrom)>new Date()?`<span class="chip" style="background:var(--warm,#faf6ee);color:var(--ink3);font-weight:600;" title="They're 6 and in the queue, but by the 1-September admissions rule they can't actually start until this date">📅 Can start from ${c._admissibleFrom}</span>`:''}
             ${c._agedOut?`<span class="chip" style="background:#fee2e2;color:#b91c1c;font-weight:700;">⏰ Aged out (${c.calculatedAge})</span><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);padding:1px 6px;" onclick="event.stopPropagation();_wlDismissApplicant('${(typeof _wlKey==='function'?_wlKey(c.Firstname,c.Surname):'').replace(/'/g,"\\'")}','${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")}')">🚫 Remove</button>`:''}
           </div>
         </td>
@@ -10291,6 +10292,29 @@ function _ayAge(dob, today) {
   if (!hadBirthday) age--;
   return age;
 }
+// Literal current age (no 1-September rounding) — per Javeed, 31 Aug 2026:
+// a child leaves the Under-6 section and joins the main queue the moment
+// they actually turn 6, not on whichever 1 September follows. Whether they
+// can actually START yet is a SEPARATE question — see _wlAdmissibleFrom —
+// so a child can be visible and ranked in the queue for months before
+// they're old enough to be offered a start date.
+function _rawAge(dob, today) {
+  const t = today || new Date();
+  const b = new Date(dob);
+  let age = t.getFullYear() - b.getFullYear();
+  const hadBirthday = (t.getMonth() > b.getMonth()) ||
+    (t.getMonth() === b.getMonth() && t.getDate() >= b.getDate());
+  if (!hadBirthday) age--;
+  return age;
+}
+// The 1-September admissions date a child can actually start from, once
+// they're 6 — kept distinct from queue position/visibility (which now use
+// the literal birthday instead).
+function _wlAdmissibleFrom(dob) {
+  const b = new Date(dob);
+  const sixthBday = new Date(b.getFullYear() + 6, b.getMonth(), b.getDate());
+  return _ayIso(_ayCutoff(sixthBday));
+}
 // Format a Date's LOCAL calendar date as YYYY-MM-DD — never use
 // .toISOString() for a date-only value: it converts to UTC first, which
 // silently shifts the date back a day for any UK viewer during BST.
@@ -10421,8 +10445,8 @@ function _wlEntryFromForm(r, idx, child) {
     : dobM[3] + '-' + String(dobM[2]).padStart(2, '0') + '-' + String(dobM[1]).padStart(2, '0')) : '';
   const subRaw = g(idx.time);
   const submitted = (subRaw.match(/(\d{4}-\d{2}-\d{2})/) || [,''])[1] || new Date().toISOString().slice(0, 10);
-  let age = 0;
-  if (dob) age = _ayAge(dob);
+  let age = 0, ayAgeForCutoff = 0;
+  if (dob) { age = _rawAge(dob); ayAgeForCutoff = _ayAge(dob); }
   const bracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-13';
   const isPolicy = age < 6;
   const effective = dob ? _wlEffectiveDate(dob, submitted) : submitted;
@@ -10433,7 +10457,9 @@ function _wlEntryFromForm(r, idx, child) {
     Mother: { Name: g(idx.mname), Phone: g(idx.mphone) || child.parentPhone, Email: g(idx.mmail) || g(idx.email) },
     Father: { Name: g(idx.fname), Phone: g(idx.fphone), Email: g(idx.fmail) },
     Status: 'Waiting', calculatedAge: age, preciseAge: age + ' yrs', bracket: bracket,
-    isPolicyEffect: isPolicy, effectiveDate: effective, _earlyBy: dob ? _wlEarlyBy(dob, submitted) : null, hasSibling: false, _live: true
+    isPolicyEffect: isPolicy, effectiveDate: effective, _earlyBy: dob ? _wlEarlyBy(dob, submitted) : null,
+    _admissibleFrom: dob ? _wlAdmissibleFrom(dob) : null, _ayAgeForCutoff: ayAgeForCutoff,
+    hasSibling: false, _live: true
   };
 }
 
@@ -10530,7 +10556,7 @@ _wlSyncFromSheets = async function() {
       if (cands.some(k => known.has(k))) { skippedKnown++; continue; }
 
       const entry = _wlEntryFromForm(r, idx, child);
-      if (entry.calculatedAge > 13) { skippedKnown++; continue; } // 13 is the oldest acceptable age
+      if (entry._ayAgeForCutoff > 13) { skippedKnown++; continue; } // must not turn 14 before 1 Sept
       freshEntries.push(entry);
       cands.forEach(k => known.add(k)); // guard against duplicate submissions
     }
@@ -10600,7 +10626,11 @@ function _wlRefreshAges() {
   const now = new Date();
   for (const c of WAITING_LIST_DATA) {
     if (!c.DOB || !/^\d{4}-\d{2}-\d{2}/.test(c.DOB)) continue;
-    const age = _ayAge(c.DOB, now);
+    // Bracket/visibility uses the LITERAL age — a child joins the main
+    // queue the day they turn 6, full stop. The 1-September admissions
+    // rule only decides when they can actually start (_wlAdmissibleFrom),
+    // never whether they're shown/ranked.
+    const age = _rawAge(c.DOB, now);
     c.calculatedAge = age;
     c.preciseAge = age + ' yrs';
     c.bracket = age < 6 ? 'Under 6' : age <= 8 ? '6-8' : age <= 11 ? '9-11' : '12-13';
@@ -10611,6 +10641,7 @@ function _wlRefreshAges() {
     if (c.Status === 'Waiting') {
       c.effectiveDate = _wlEffectiveDate(c.DOB, c.DateSubmitted);
       c._earlyBy = _wlEarlyBy(c.DOB, c.DateSubmitted);
+      c._admissibleFrom = _wlAdmissibleFrom(c.DOB);
     }
     // isPolicyEffect and _agedOut must be recomputed every pass, not just
     // when the bracket changes — otherwise a child whose bracket was
@@ -10618,9 +10649,10 @@ function _wlRefreshAges() {
     // a stale "policy" flag from whatever the field held when it was
     // created, even though they no longer meet the Under-6 definition.
     c.isPolicyEffect = age < 6;
-    // 13 is the oldest age a child can still be accepted (must not turn 14
-    // before the 1 September cutoff) — 14+ as of that cutoff is aged out
-    c._agedOut = c.Status === 'Waiting' && age > 13;
+    // The 14-cutoff genuinely IS a 1-September rule ("turns 14 before
+    // 1 Sept must graduate"), unlike the under-6 case — so this keeps
+    // using the Sept-1-based age, not the literal one.
+    c._agedOut = c.Status === 'Waiting' && _ayAge(c.DOB, now) > 13;
   }
 }
 
@@ -11049,6 +11081,7 @@ window.openWLDetail = function(idx) {
   if (c.hasSibling) tags.push('<span class="tag" style="background:var(--gold-lt);color:var(--gold-dk);">⚭ Sibling already at EEIS</span>');
   if (c.isPolicyEffect) tags.push('<span class="tag" style="background:var(--warm);color:var(--ink3);">Not yet 6 by 1 September — not eligible to enrol yet</span>');
   if (c._earlyBy) tags.push('<span class="tag" style="background:#fff3cd;color:#8a6210;">🕐 Applied ' + c._earlyBy + ' before their 6th birthday</span>');
+  if (!c.isPolicyEffect && c._admissibleFrom && new Date(c._admissibleFrom) > new Date()) tags.push('<span class="tag" style="background:var(--warm);color:var(--ink3);">📅 Can start from ' + c._admissibleFrom + ' (1-Sept admissions rule)</span>');
   const tagsHTML = tags.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;">' + tags.map(t => t.replace('class="tag"', 'style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;"')).join('') + '</div>' : '';
 
   const contactRow = (label, p) => (p && (p.Name || p.Phone || p.Email)) ? `
@@ -11236,16 +11269,18 @@ function _p11RenderUnder6(pool) {
 
   const card = c => {
     const age = c.calculatedAge != null ? c.calculatedAge : '?';
-    // Two different dates: effectiveDate is their QUEUE position (their
-    // literal 6th birthday); admissions eligibility (when they can actually
-    // start) is separately governed by the 1-September cutoff rule.
-    const sixthBday = c.DOB ? _ayIso(new Date(new Date(c.DOB).getFullYear() + 6, new Date(c.DOB).getMonth(), new Date(c.DOB).getDate())) : '';
-    const admissible = sixthBday ? _ayIso(_ayCutoff(new Date(sixthBday))) : '—';
+    // Three distinct dates shown here: their birthday (when they turn 6 and
+    // automatically join the main queue below), the admissions date (when
+    // the 1-September rule actually lets them start), and how early they
+    // applied relative to their birthday.
+    const sixthBday = c.effectiveDate || (c.DOB ? _wlEffectiveDate(c.DOB, c.DateSubmitted) : '');
+    const admissible = c._admissibleFrom || (c.DOB ? _wlAdmissibleFrom(c.DOB) : '—');
     return `<div style="background:var(--warm,#faf6ee);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12.5px;">
       <div style="font-weight:700;">${c.Firstname} ${c.Surname}</div>
-      <div style="color:var(--ink3);">Age ${age} · b. ${c.DOB} · turns 6 on ${sixthBday}</div>
+      <div style="color:var(--ink3);">Age ${age} · b. ${c.DOB}</div>
       <div>Applied ${c.DateSubmitted}${c._earlyBy ? ` <span style="color:#8a6210;">(${c._earlyBy} early)</span>` : ''}</div>
-      <div><strong style="color:var(--maroon,#7a1f2b);">Not eligible to enrol until ${admissible}</strong></div>
+      <div><strong style="color:var(--maroon,#7a1f2b);">Will be queued from ${sixthBday}</strong> — that's when they automatically join the main list above</div>
+      ${admissible !== sixthBday ? `<div style="color:var(--ink3);">Can actually start from ${admissible} (1-Sept admissions rule)</div>` : ''}
     </div>`;
   };
   const boys = under6.filter(c => c.Gender === 'Male');
