@@ -5841,7 +5841,8 @@ Jazakallah Khayran.`
             <span class="chip ${c.Gender==='Male'?'chip-B2':'chip-G1'}">${c.Gender==='Male'?'♂':'♀'}</span>
             ${typeof _p10Duration==='function'&&_p10Duration(c.effectiveDate)?`<span class="chip" style="background:var(--maroon-soft,#f3e4e1);color:var(--maroon,#7a1f2b);font-weight:700;" title="Time waiting, from ${c.effectiveDate}">⏳ ${_p10Duration(c.effectiveDate)}</span>`:''}
             ${c.hasSibling?'<span class="sibling-badge">⚭ sibling</span>':''}
-            ${c.isPolicyEffect?'<span class="policy-badge">⚠ policy</span>':''}
+            ${c.isPolicyEffect?'<span class="policy-badge">⚠ not yet 6</span>':''}
+            ${c._earlyBy?`<span class="chip" style="background:#fff3cd;color:#8a6210;font-weight:700;" title="Applied before their 6th birthday — their queue position counts from ${c.effectiveDate}, not their application date">🕐 Applied ${c._earlyBy} early</span>`:''}
             ${c._agedOut?`<span class="chip" style="background:#fee2e2;color:#b91c1c;font-weight:700;">⏰ Aged out (${c.calculatedAge})</span><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);padding:1px 6px;" onclick="event.stopPropagation();_wlDismissApplicant('${(typeof _wlKey==='function'?_wlKey(c.Firstname,c.Surname):'').replace(/'/g,"\\'")}','${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")}')">🚫 Remove</button>`:''}
           </div>
         </td>
@@ -5855,7 +5856,7 @@ Jazakallah Khayran.`
         </td>
         <td class="hide-mobile" style="font-size:11px;color:var(--ink3);">
           ${c.DateSubmitted === 'Graduated' ? '🎓 Graduated' : `Applied ${c.DateSubmitted}`}
-          ${c.effectiveDate && c.effectiveDate !== c.DateSubmitted ? `<div style="color:var(--maroon,#7a1f2b);font-weight:600;" title="Applied before turning 6 — queue date is their eligibility date, not their application date, so applying early gains no advantage">Queued from ${c.effectiveDate}</div>` : ''}
+          ${c.effectiveDate && c.effectiveDate !== c.DateSubmitted ? `<div style="color:var(--maroon,#7a1f2b);font-weight:600;" title="Applied before their 6th birthday — their queue position counts from that birthday, not their application date, so applying early gains no advantage">Queued from ${c.effectiveDate}</div>` : ''}
         </td>
         <td onclick="event.stopPropagation();${phone ? `openContactPopup('${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")} — Parent','${_p12Phone.replace(/'/g,"\\'")}')` : ''}" style="${phone?'cursor:pointer;':''}">
           <div style="font-size:11px;font-weight:600;">${name || '—'}</div>
@@ -10296,20 +10297,46 @@ function _ayAge(dob, today) {
 function _ayIso(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
-// A child's queue date is whichever is LATER: the date they applied, or the
-// date they actually became eligible (the 1-Sept cutoff following their 6th
-// birthday). This must be recomputed unconditionally from DOB every time —
-// not just when a child's bracket happens to change — otherwise a child who
-// applied at, say, age 4 but has since turned 6 keeps their raw application
-// date as their queue position forever, jumping ahead of children who
-// applied later but were already 6 at the time. Applying early must never
-// give any advantage over a family who simply waited until eligible.
+// A child's QUEUE POSITION date is whichever is LATER: the date they
+// applied, or their literal 6th birthday (per Javeed, 31 Aug 2026 — queue
+// ranking uses the actual birthday, not the 1-September admissions
+// cutoff; the Sept-1 rule is a separate thing that only governs whether
+// they're eligible to actually START yet, handled by _ayAge/bracket
+// below). This must be recomputed unconditionally from DOB every time —
+// not just when a child's bracket happens to change — otherwise a child
+// who applied at, say, age 4 but has since turned 6 keeps their raw
+// application date as their queue position forever, jumping ahead of
+// children who applied later but were already 6 at the time. Applying
+// early must never give any advantage over a family who simply waited
+// until their child turned 6.
 function _wlEffectiveDate(dob, dateSubmitted) {
   const b = new Date(dob);
-  const sixthBday = new Date(b.getFullYear() + 6, b.getMonth(), b.getDate());
-  const eligibleFrom = _ayIso(_ayCutoff(sixthBday));
+  const sixthBdayIso = _ayIso(new Date(b.getFullYear() + 6, b.getMonth(), b.getDate()));
   const sub = (dateSubmitted || '').slice(0, 10);
-  return (sub && sub > eligibleFrom) ? sub : eligibleFrom;
+  return (sub && sub > sixthBdayIso) ? sub : sixthBdayIso;
+}
+// How far ahead of their 6th birthday a family applied — null if they
+// applied on or after turning 6 (i.e. not an early application at all).
+// Calendar-accurate breakdown (not approximate /365 division) so the
+// months/weeks/days shown in the record are exactly right.
+function _wlEarlyBy(dob, dateSubmitted) {
+  if (!dob || !dateSubmitted) return null;
+  const b = new Date(dob);
+  const sixthBday = new Date(b.getFullYear() + 6, b.getMonth(), b.getDate());
+  const sub = new Date((dateSubmitted || '').slice(0, 10));
+  if (isNaN(sub.getTime()) || sub >= sixthBday) return null;
+  let y = sixthBday.getFullYear() - sub.getFullYear();
+  let m = sixthBday.getMonth() - sub.getMonth();
+  let d = sixthBday.getDate() - sub.getDate();
+  if (d < 0) { m--; d += new Date(sixthBday.getFullYear(), sixthBday.getMonth(), 0).getDate(); }
+  if (m < 0) { y--; m += 12; }
+  const weeks = Math.floor(d / 7), days = d % 7;
+  const parts = [];
+  if (y) parts.push(y + (y === 1 ? ' year' : ' years'));
+  if (m) parts.push(m + (m === 1 ? ' month' : ' months'));
+  if (weeks) parts.push(weeks + (weeks === 1 ? ' week' : ' weeks'));
+  if (days || !parts.length) parts.push(days + (days === 1 ? ' day' : ' days'));
+  return parts.join(', ');
 }
 
 // Match key: first word of first name + surname, cleaned & lowercased
@@ -10406,7 +10433,7 @@ function _wlEntryFromForm(r, idx, child) {
     Mother: { Name: g(idx.mname), Phone: g(idx.mphone) || child.parentPhone, Email: g(idx.mmail) || g(idx.email) },
     Father: { Name: g(idx.fname), Phone: g(idx.fphone), Email: g(idx.fmail) },
     Status: 'Waiting', calculatedAge: age, preciseAge: age + ' yrs', bracket: bracket,
-    isPolicyEffect: isPolicy, effectiveDate: effective, hasSibling: false, _live: true
+    isPolicyEffect: isPolicy, effectiveDate: effective, _earlyBy: dob ? _wlEarlyBy(dob, submitted) : null, hasSibling: false, _live: true
   };
 }
 
@@ -10581,7 +10608,10 @@ function _wlRefreshAges() {
     // change — see _wlEffectiveDate above for why this must be unconditional.
     // Skip Senior Candidates: their DateSubmitted is the literal string
     // "Graduated", not a date, and they're not part of the live queue.
-    if (c.Status === 'Waiting') c.effectiveDate = _wlEffectiveDate(c.DOB, c.DateSubmitted);
+    if (c.Status === 'Waiting') {
+      c.effectiveDate = _wlEffectiveDate(c.DOB, c.DateSubmitted);
+      c._earlyBy = _wlEarlyBy(c.DOB, c.DateSubmitted);
+    }
     // isPolicyEffect and _agedOut must be recomputed every pass, not just
     // when the bracket changes — otherwise a child whose bracket was
     // already correct (e.g. baked directly as '6-8') can be left showing
@@ -11018,6 +11048,7 @@ window.openWLDetail = function(idx) {
   if (c.Allergies) tags.push('<span class="tag" style="background:#fbe6e0;color:#a3401f;">⚠ ' + c.Allergies + '</span>');
   if (c.hasSibling) tags.push('<span class="tag" style="background:var(--gold-lt);color:var(--gold-dk);">⚭ Sibling already at EEIS</span>');
   if (c.isPolicyEffect) tags.push('<span class="tag" style="background:var(--warm);color:var(--ink3);">Not yet 6 by 1 September — not eligible to enrol yet</span>');
+  if (c._earlyBy) tags.push('<span class="tag" style="background:#fff3cd;color:#8a6210;">🕐 Applied ' + c._earlyBy + ' before their 6th birthday</span>');
   const tagsHTML = tags.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;">' + tags.map(t => t.replace('class="tag"', 'style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;"')).join('') + '</div>' : '';
 
   const contactRow = (label, p) => (p && (p.Name || p.Phone || p.Email)) ? `
@@ -11044,7 +11075,7 @@ window.openWLDetail = function(idx) {
           </div>
           ${c.effectiveDate && c.effectiveDate !== c.DateSubmitted ? `<div style="flex:1;min-width:100px;">
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--maroon,#7a1f2b);">Queued from</div>
-            <div style="font-size:14px;font-weight:600;color:var(--maroon,#7a1f2b);" title="Applied before turning 6, so their position counts from when they became eligible, not from when they applied">${_p10FmtDate(c.effectiveDate)}</div>
+            <div style="font-size:14px;font-weight:600;color:var(--maroon,#7a1f2b);" title="Applied before their 6th birthday, so their queue position counts from that birthday, not from when they applied">${_p10FmtDate(c.effectiveDate)}</div>
           </div>` : ''}
           <div style="flex:1;min-width:100px;">
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--maroon,#7a1f2b);">Waiting</div>
@@ -11205,11 +11236,16 @@ function _p11RenderUnder6(pool) {
 
   const card = c => {
     const age = c.calculatedAge != null ? c.calculatedAge : '?';
-    const eligible = c.effectiveDate ? c.effectiveDate.slice(0, 10) : '—';
+    // Two different dates: effectiveDate is their QUEUE position (their
+    // literal 6th birthday); admissions eligibility (when they can actually
+    // start) is separately governed by the 1-September cutoff rule.
+    const sixthBday = c.DOB ? _ayIso(new Date(new Date(c.DOB).getFullYear() + 6, new Date(c.DOB).getMonth(), new Date(c.DOB).getDate())) : '';
+    const admissible = sixthBday ? _ayIso(_ayCutoff(new Date(sixthBday))) : '—';
     return `<div style="background:var(--warm,#faf6ee);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12.5px;">
       <div style="font-weight:700;">${c.Firstname} ${c.Surname}</div>
-      <div style="color:var(--ink3);">Age ${age} · b. ${c.DOB}</div>
-      <div>Applied ${c.DateSubmitted} · <strong style="color:var(--maroon,#7a1f2b);">not eligible until ${eligible}</strong></div>
+      <div style="color:var(--ink3);">Age ${age} · b. ${c.DOB} · turns 6 on ${sixthBday}</div>
+      <div>Applied ${c.DateSubmitted}${c._earlyBy ? ` <span style="color:#8a6210;">(${c._earlyBy} early)</span>` : ''}</div>
+      <div><strong style="color:var(--maroon,#7a1f2b);">Not eligible to enrol until ${admissible}</strong></div>
     </div>`;
   };
   const boys = under6.filter(c => c.Gender === 'Male');
