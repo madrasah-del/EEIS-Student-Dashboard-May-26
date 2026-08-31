@@ -5818,7 +5818,9 @@ Jazakallah Khayran.`
       const levelCat = getWLLevelCategory(c.Level);
       const levelBadge = `<span style="font-size:9px;padding:1px 5px;border-radius:5px;background:var(--warm);color:var(--ink2);">${levelCat}</span>`;
 
-      html += `<tr class="${rowCls}"${c._agedOut?' style="opacity:.55;"':''}>
+      const _p12Idx = WAITING_LIST_DATA.indexOf(c);
+      const _p12Phone = typeof _p12FormatUKPhone==='function' ? _p12FormatUKPhone(phone) : phone;
+      html += `<tr class="wl-row-clickable ${rowCls}" style="cursor:pointer;${c._agedOut?'opacity:.55;':''}" onclick="if(typeof openWLDetail==='function')openWLDetail(${_p12Idx})">
         <td class="sticky-col" style="text-align:center;min-width:84px;">
           <div style="display:flex;align-items:flex-end;justify-content:center;gap:5px;">
             <div>
@@ -5834,13 +5836,13 @@ Jazakallah Khayran.`
           ${isLeader ? '<div class="gold-star-badge">★</div>' : ''}
         </td>
         <td>
-          <div style="font-weight:700;font-size:var(--font-md);cursor:pointer;" onclick="if(typeof openWLDetail==='function')openWLDetail(${WAITING_LIST_DATA.indexOf(c)})" title="Tap for full details">${c.Firstname} ${c.Surname}</div>
+          <div style="font-weight:700;font-size:var(--font-md);">${c.Firstname} ${c.Surname}</div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;">
             <span class="chip ${c.Gender==='Male'?'chip-B2':'chip-G1'}">${c.Gender==='Male'?'♂':'♀'}</span>
             ${typeof _p10Duration==='function'&&_p10Duration(c.effectiveDate)?`<span class="chip" style="background:var(--maroon-soft,#f3e4e1);color:var(--maroon,#7a1f2b);font-weight:700;" title="Time waiting, from ${c.effectiveDate}">⏳ ${_p10Duration(c.effectiveDate)}</span>`:''}
             ${c.hasSibling?'<span class="sibling-badge">⚭ sibling</span>':''}
             ${c.isPolicyEffect?'<span class="policy-badge">⚠ policy</span>':''}
-            ${c._agedOut?`<span class="chip" style="background:#fee2e2;color:#b91c1c;font-weight:700;">⏰ Aged out (${c.calculatedAge})</span><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);padding:1px 6px;" onclick="_wlDismissApplicant('${(typeof _wlKey==='function'?_wlKey(c.Firstname,c.Surname):'').replace(/'/g,"\\'")}','${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")}')">🚫 Remove</button>`:''}
+            ${c._agedOut?`<span class="chip" style="background:#fee2e2;color:#b91c1c;font-weight:700;">⏰ Aged out (${c.calculatedAge})</span><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);padding:1px 6px;" onclick="event.stopPropagation();_wlDismissApplicant('${(typeof _wlKey==='function'?_wlKey(c.Firstname,c.Surname):'').replace(/'/g,"\\'")}','${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")}')">🚫 Remove</button>`:''}
           </div>
         </td>
         <td class="hide-mobile">
@@ -5851,14 +5853,17 @@ Jazakallah Khayran.`
           <div style="font-size:var(--font-sm);font-style:italic;color:var(--ink2);">${c.Level||'—'}</div>
           ${levelBadge}
         </td>
-        <td class="hide-mobile" style="font-size:11px;color:var(--ink3);">${c.DateSubmitted === 'Graduated' ? '🎓 Graduated' : c.DateSubmitted}</td>
-        <td>
+        <td class="hide-mobile" style="font-size:11px;color:var(--ink3);">
+          ${c.DateSubmitted === 'Graduated' ? '🎓 Graduated' : `Applied ${c.DateSubmitted}`}
+          ${c.effectiveDate && c.effectiveDate !== c.DateSubmitted ? `<div style="color:var(--maroon,#7a1f2b);font-weight:600;" title="Applied before turning 6 — queue date is their eligibility date, not their application date, so applying early gains no advantage">Queued from ${c.effectiveDate}</div>` : ''}
+        </td>
+        <td onclick="event.stopPropagation();${phone ? `openContactPopup('${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")} — Parent','${_p12Phone.replace(/'/g,"\\'")}')` : ''}" style="${phone?'cursor:pointer;':''}">
           <div style="font-size:11px;font-weight:600;">${name || '—'}</div>
-          <div style="font-size:11px;color:var(--blue);">${phone || '—'}</div>
+          <div style="font-size:11px;color:var(--blue);${phone?'text-decoration:underline;':''}">${_p12Phone || '—'}</div>
         </td>
         <td>
           <div class="contact-actions">
-            ${phone || name ? `<button class="btn-whatsapp" style="border:none;cursor:pointer;" onclick="if(typeof openWLMessageChooser==='function')openWLMessageChooser(${WAITING_LIST_DATA.indexOf(c)})">✉️ Message</button>` : '<span style="font-size:10px;color:var(--ink3);">No contact</span>'}
+            ${phone || name ? `<button class="btn-whatsapp" style="border:none;cursor:pointer;" onclick="event.stopPropagation();if(typeof openWLMessageChooser==='function')openWLMessageChooser(${_p12Idx})">✉️ Message</button>` : '<span style="font-size:10px;color:var(--ink3);">No contact</span>'}
           </div>
         </td>
       </tr>`;
@@ -11012,14 +11017,14 @@ window.openWLDetail = function(idx) {
   if (c.Level) tags.push('<span class="tag" style="background:var(--warm);color:var(--ink2);">' + c.Level + '</span>');
   if (c.Allergies) tags.push('<span class="tag" style="background:#fbe6e0;color:#a3401f;">⚠ ' + c.Allergies + '</span>');
   if (c.hasSibling) tags.push('<span class="tag" style="background:var(--gold-lt);color:var(--gold-dk);">⚭ Sibling already at EEIS</span>');
-  if (c.isPolicyEffect) tags.push('<span class="tag" style="background:var(--warm);color:var(--ink3);">Under-6 policy — queue starts at 6th birthday</span>');
+  if (c.isPolicyEffect) tags.push('<span class="tag" style="background:var(--warm);color:var(--ink3);">Not yet 6 by 1 September — not eligible to enrol yet</span>');
   const tagsHTML = tags.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;">' + tags.map(t => t.replace('class="tag"', 'style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;"')).join('') + '</div>' : '';
 
   const contactRow = (label, p) => (p && (p.Name || p.Phone || p.Email)) ? `
     <div style="display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
       <span style="width:48px;flex:none;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink3);">${label}</span>
       <span style="font-weight:600;flex:1;">${p.Name || '—'}</span>
-      <span style="color:var(--blue);">${p.Phone || '—'}</span>
+      <span style="color:var(--blue);${p.Phone?'text-decoration:underline;cursor:pointer;':''}" ${p.Phone ? `onclick="event.stopPropagation();openContactPopup('${(p.Name||label).replace(/'/g,"\\'")}','${_p12FormatUKPhone(p.Phone).replace(/'/g,"\\'")}')"` : ''}>${p.Phone ? _p12FormatUKPhone(p.Phone) : '—'}</span>
     </div>` : '';
 
   ov.innerHTML = `
@@ -11032,12 +11037,16 @@ window.openWLDetail = function(idx) {
         <button onclick="document.getElementById('p10-wl-detail').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink3);">✕</button>
       </div>
       <div style="padding:16px;">
-        <div style="display:flex;gap:16px;margin-bottom:4px;">
-          <div style="flex:1;">
+        <div style="display:flex;gap:16px;margin-bottom:4px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:100px;">
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink3);">Applied</div>
             <div style="font-size:14px;font-weight:600;">${_p10FmtDate(c.DateSubmitted)}</div>
           </div>
-          <div style="flex:1;">
+          ${c.effectiveDate && c.effectiveDate !== c.DateSubmitted ? `<div style="flex:1;min-width:100px;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--maroon,#7a1f2b);">Queued from</div>
+            <div style="font-size:14px;font-weight:600;color:var(--maroon,#7a1f2b);" title="Applied before turning 6, so their position counts from when they became eligible, not from when they applied">${_p10FmtDate(c.effectiveDate)}</div>
+          </div>` : ''}
+          <div style="flex:1;min-width:100px;">
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--maroon,#7a1f2b);">Waiting</div>
             <div style="font-size:14px;font-weight:700;color:var(--maroon,#7a1f2b);">${dur || '—'}</div>
           </div>
@@ -11199,7 +11208,8 @@ function _p11RenderUnder6(pool) {
     const eligible = c.effectiveDate ? c.effectiveDate.slice(0, 10) : '—';
     return `<div style="background:var(--warm,#faf6ee);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12.5px;">
       <div style="font-weight:700;">${c.Firstname} ${c.Surname}</div>
-      <div style="color:var(--ink3);">Age ${age} · b. ${c.DOB} · eligible from ${eligible}</div>
+      <div style="color:var(--ink3);">Age ${age} · b. ${c.DOB}</div>
+      <div>Applied ${c.DateSubmitted} · <strong style="color:var(--maroon,#7a1f2b);">not eligible until ${eligible}</strong></div>
     </div>`;
   };
   const boys = under6.filter(c => c.Gender === 'Male');
@@ -11223,6 +11233,31 @@ window._p11RenderUnder6 = _p11RenderUnder6;
 
 console.log('[Phase 11] WL message chooser + separate Under-6 section active');
 })();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// PHASE 12 — Standard UK phone display, tap-anywhere-on-row, and
+// row separator lines on the Waiting List
+// (plain top-level function, not wrapped in an IIFE — the row
+// markup that calls this lives in the base, non-IIFE renderWaitlist,
+// so this must be a genuine global to be reachable from there)
+// ══════════════════════════════════════════════════════════════
+function _p12FormatUKPhone(raw) {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.startsWith('44')) d = '0' + d.slice(2);
+  else if (!d.startsWith('0') && d.length === 10) d = '0' + d;
+  if (d.length !== 11) return raw || '';
+  return d.slice(0, 5) + ' ' + d.slice(5);
+}
+
+const _p12Style = document.createElement('style');
+_p12Style.textContent = `
+  .wl-row-clickable { border-top: 1px solid var(--border, #e5e0d8); border-bottom: 1px solid var(--border, #e5e0d8); }
+  .wl-row-clickable:active { background: rgba(122,31,43,.06); }
+`;
+document.head.appendChild(_p12Style);
+console.log('[Phase 12] UK phone format + tap-anywhere row + row separators active');
 </script>
 </body>
 </html>
