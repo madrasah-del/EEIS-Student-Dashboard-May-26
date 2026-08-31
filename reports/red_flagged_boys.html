@@ -1,0 +1,189 @@
+<title>Red-Flagged Boys Review</title>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+  :root {
+    --paper: #faf6ee; --surface: #ffffff; --surface-2: #f4efe4;
+    --ink: #2a2118; --ink-soft: #6e6153; --ink-faint: #a89a86;
+    --maroon: #7a1f2b; --maroon-soft: #f3e4e1;
+    --sage: #55684f; --sage-soft: #e7ede2;
+    --gold: #a9803d; --gold-soft: #f4e9d5;
+    --border: #e7dfd1; --red: #b91c1c; --red-soft: #fbe6e0;
+    --yellow-soft: #fff3cd; --green-soft: #e3f5e6;
+    --shadow: 0 1px 2px rgba(42,33,24,.06), 0 4px 14px rgba(42,33,24,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1c1712; --surface: #241e18; --surface-2: #2c251d;
+      --ink: #f1e9dc; --ink-soft: #b8ab98; --ink-faint: #7d7161;
+      --maroon: #e0929c; --maroon-soft: #3b2225;
+      --sage: #9bb393; --sage-soft: #26301f;
+      --gold: #d8b172; --gold-soft: #332714;
+      --border: #3a3229; --red: #f1a3a3; --red-soft: #3a2020;
+      --yellow-soft: #3a331a; --green-soft: #1f2f22;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1c1712; --surface: #241e18; --surface-2: #2c251d;
+    --ink: #f1e9dc; --ink-soft: #b8ab98; --ink-faint: #7d7161;
+    --maroon: #e0929c; --maroon-soft: #3b2225;
+    --sage: #9bb393; --sage-soft: #26301f;
+    --gold: #d8b172; --gold-soft: #332714;
+    --border: #3a3229; --red: #f1a3a3; --red-soft: #3a2020;
+    --yellow-soft: #3a331a; --green-soft: #1f2f22;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font-family:'Public Sans',system-ui,sans-serif; font-variant-numeric:tabular-nums; line-height:1.5; }
+  .page { max-width: 860px; margin:0 auto; padding: 40px 20px 80px; }
+  .eyebrow { font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--sage); margin-bottom:6px; }
+  h1 { font-family:'Lora',serif; font-weight:700; font-size:clamp(26px,4vw,34px); margin:0 0 8px; text-wrap:balance; }
+  .sub { font-size:14px; color:var(--ink-soft); max-width:62ch; margin-bottom:28px; }
+
+  .summary-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:32px; box-shadow:var(--shadow); }
+  .summary-cell { background:var(--surface); padding:14px 14px; }
+  .summary-num { font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600; color:var(--maroon); }
+  .summary-label { font-size:10.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
+
+  h2 { font-family:'Lora',serif; font-size:20px; font-weight:700; margin:0 0 6px; }
+  .section-note { font-size:13px; color:var(--ink-soft); margin-bottom:16px; max-width:65ch; }
+  section { margin-bottom:40px; }
+
+  .card-list { display:flex; flex-direction:column; gap:8px; }
+  .child-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; box-shadow:var(--shadow); display:flex; gap:12px; align-items:flex-start; }
+  .child-card.red { border-left:4px solid var(--red); }
+  .child-card.yellow { border-left:4px solid #c9a227; }
+  .child-card.green { border-left:4px solid var(--sage); }
+  .child-main { flex:1; }
+  .child-name { font-family:'Lora',serif; font-weight:600; font-size:15.5px; }
+  .child-meta { font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+  .child-meta b { color:var(--ink); font-weight:600; }
+  .child-flag { font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px; white-space:nowrap; }
+  .flag-red { background:var(--red-soft); color:var(--red); }
+  .flag-yellow { background:var(--yellow-soft); color:#8a6210; }
+  .flag-green { background:var(--green-soft); color:var(--sage); }
+  .decision-line { margin-top:6px; font-size:12px; color:var(--ink-faint); border-top:1px dashed var(--border); padding-top:6px; }
+
+  table.recon { width:100%; border-collapse:collapse; font-size:13px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:var(--shadow); }
+  table.recon th { background:var(--surface-2); text-align:left; padding:8px 12px; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); }
+  table.recon td { padding:8px 12px; border-top:1px solid var(--border); vertical-align:top; }
+  .ok-tag { color:var(--sage); font-weight:600; }
+
+  .gap-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; margin-top:10px; }
+  .gap-chip { background:var(--surface-2); border-radius:8px; padding:7px 11px; font-size:12.5px; }
+
+  .clean-banner { background:var(--sage-soft); border:1px solid var(--sage); border-radius:10px; padding:14px 16px; font-size:14px; color:var(--ink); margin-bottom:32px; }
+  .clean-banner strong { color:var(--sage); }
+
+  .footer { margin-top:44px; padding-top:14px; border-top:1px solid var(--border); font-size:11.5px; color:var(--ink-faint); }
+  @media (max-width:560px) { .summary-strip { grid-template-columns:repeat(2,1fr); } .child-card { flex-direction:column; } }
+</style>
+
+<div class="page">
+  <div class="eyebrow">EEIS Al-Kauthar Saturday Madrasah</div>
+  <h1>Waiting List Reconciliation — 31 August 2026</h1>
+  <div class="sub">Cross-checked the live app against your OneDrive Excel export (Boys &amp; Girls Waiting List tabs), the current student database, and the Left/Graduated records — including the manual colour-coding on the Boys tab.</div>
+
+  <div class="clean-banner">✅ <strong>Zero contamination found.</strong> Every child currently on the app's waiting list was checked against current students and the Left/Graduated lists — nobody on the list has already enrolled, already left, or already graduated.</div>
+
+  <div class="summary-strip">
+    <div class="summary-cell"><div class="summary-num">9</div><div class="summary-label">Red-flagged boys</div></div>
+    <div class="summary-cell"><div class="summary-num">4</div><div class="summary-label">Excel↔App gaps — all explained</div></div>
+    <div class="summary-cell"><div class="summary-num">29</div><div class="summary-label">On app, not yet in Excel</div></div>
+    <div class="summary-cell"><div class="summary-num">0</div><div class="summary-label">Enrolled/left students found on WL</div></div>
+  </div>
+
+  <section>
+    <h2>🔴 Red-flagged boys — need a decision (9)</h2>
+    <div class="section-note">Highlighted red in your Boys Waiting List tab in Excel — most likely families you've already contacted. All 9 are still active on the app's waiting list (one, ABDOULLAH BARRY, has since aged out and was already removed). Space below each for your decision.</div>
+    <div class="card-list">
+      <div class="child-card red"><div class="child-main">
+        <div class="child-name">Kamil Rawat <span class="child-flag flag-red">red</span></div>
+        <div class="child-meta">Bracket <b>6-8</b> (age 8) · Applied <b>15 Jun 2024</b> — over 2 years ago</div>
+        <div class="decision-line">Decision: _______________________________</div>
+      </div></div>
+      <div class="child-card red"><div class="child-main">
+        <div class="child-name">Hadi Faisal Culasy <span class="child-flag flag-red">red</span></div>
+        <div class="child-meta">Bracket <b>9-11</b> (age 10) · Applied <b>7 Mar 2025</b></div>
+        <div class="decision-line">Decision: _______________________________</div>
+      </div></div>
+      <div class="child-card red"><div class="child-main">
+        <div class="child-name">Hashim Khan <span class="child-flag flag-red">red</span></div>
+        <div class="child-meta">Bracket <b>12-13</b> (age 12) · Applied <b>25 Jan 2025</b></div>
+        <div class="decision-line">Decision: _______________________________</div>
+      </div></div>
+      <div class="child-card red" style="opacity:.6;"><div class="child-main">
+        <div class="child-name">ABDOULLAH BARRY <span class="child-flag flag-red">red</span> <span class="child-flag" style="background:var(--surface-2);color:var(--ink-soft);">already removed</span></div>
+        <div class="child-meta">DOB 28 Apr 2012 — turned 14 before this 1 September, aged out automatically. No action needed.</div>
+      </div></div>
+      <div class="child-card red"><div class="child-main">
+        <div class="child-name">Salaar Muhammad Rahil <span class="child-flag flag-red">red</span></div>
+        <div class="child-meta">Bracket <b>6-8</b> (age 6) · Applied <b>8 Sep 2025</b></div>
+        <div class="decision-line">Decision: _______________________________</div>
+      </div></div>
+      <div class="child-card red"><div class="child-main">
+        <div class="child-name">Habib Barry <span class="child-flag flag-red">red</span></div>
+        <div class="child-meta">Bracket <b>6-8</b> (age 6) · Applied <b>1 Jan 2026</b></div>
+        <div class="decision-line">Decision: _______________________________</div>
+      </div></div>
+      <div class="child-card red"><div class="child-main">
+        <div class="child-name">Yunus Malik <span class="child-flag flag-red">red</span></div>
+        <div class="child-meta">Bracket <b>6-8</b> (age 6) · Applied <b>9 Sep 2025</b></div>
+        <div class="decision-line">Decision: _______________________________</div>
+      </div></div>
+      <div class="child-card red"><div class="child-main">
+        <div class="child-name">Navier Nazakat Hossain <span class="child-flag flag-red">red</span></div>
+        <div class="child-meta">Bracket <b>Under 6</b> (age 5) · Applied <b>28 Oct 2025</b></div>
+        <div class="decision-line">Decision: _______________________________</div>
+      </div></div>
+      <div class="child-card red"><div class="child-main">
+        <div class="child-name">Ruzain Muhammad <span class="child-flag flag-red">red</span></div>
+        <div class="child-meta">Bracket <b>6-8</b> (age 6) · Applied <b>17 Jan 2026</b></div>
+        <div class="decision-line">Decision: _______________________________</div>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Other colour flags on the Boys tab</h2>
+    <div class="card-list">
+      <div class="child-card yellow"><div class="child-main">
+        <div class="child-name">Yaqoob Ali <span class="child-flag flag-yellow">yellow</span></div>
+        <div class="child-meta">Your longest-waiting boy on the whole list — applied 4 Sep 2022. Worth knowing what yellow means to you here.</div>
+      </div></div>
+      <div class="child-card green"><div class="child-main">
+        <div class="child-name">Muhammed Ali <span class="child-flag flag-green">green</span></div>
+        <div class="child-meta">Bracket 12-13 · Applied 5 Mar 2025 — green usually reads as a positive status (offered/confirmed?). Worth confirming his current state.</div>
+      </div></div>
+    </div>
+    <div class="section-note" style="margin-top:10px;">The Girls tab has no manual colour-coding — only the Boys tab is flagged this way.</div>
+  </section>
+
+  <section>
+    <h2>Excel ↔ App differences (4) — all already explained</h2>
+    <table class="recon">
+      <tr><th>Child</th><th>On Excel WL</th><th>On App WL</th><th>Why</th></tr>
+      <tr><td>Miriam Hema Choudhury</td><td>✓</td><td>—</td><td class="ok-tag">Already an enrolled student</td></tr>
+      <tr><td>Zoya Culasy</td><td>✓</td><td>—</td><td class="ok-tag">Already an enrolled student</td></tr>
+      <tr><td>Aaliyah Calloo</td><td>✓</td><td>—</td><td class="ok-tag">Already an enrolled student</td></tr>
+      <tr><td>ABDOULLAH BARRY</td><td>✓</td><td>—</td><td class="ok-tag">Aged out (14 before 1 Sept)</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>29 on the app, not yet copied into Excel</h2>
+    <div class="section-note">24 applied via the Google Form since your Excel was last updated — the app picked them up automatically, but nobody's transcribed them into the Boys/Girls Waiting List tabs yet. Not an error, just Excel catching up to the live form.</div>
+    <div class="section-note" style="color:var(--maroon);font-weight:600;">5 are worth a specific check — they predate the recent form-sync batch, so their absence from Excel isn't explained by that alone. Were these removed from Excel deliberately?</div>
+    <div class="gap-list">
+      <div class="gap-chip">Sarah Aadil</div>
+      <div class="gap-chip">Hassan Khaksar</div>
+      <div class="gap-chip">Ayaan Uddin</div>
+      <div class="gap-chip">Zoya Uddin</div>
+      <div class="gap-chip">Ilan Ameerbeg</div>
+    </div>
+  </section>
+
+  <div class="footer">EEIS Al-Kauthar Saturday Madrasah — Waiting List Reconciliation — generated 31 August 2026 from the live dashboard and the OneDrive Excel export dated the same day.</div>
+</div>
