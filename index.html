@@ -2431,6 +2431,7 @@ input, select, textarea {
     <span id="wl-sync-text" style="flex:1;color:var(--blue);">—</span>
     <button class="btn btn-ghost btn-sm" onclick="_wlMarkReviewed()" style="font-size:11px;">✅ Mark reviewed</button>
     <button class="btn btn-ghost btn-sm" onclick="_wlSyncFromSheets()" style="font-size:11px;" id="wl-sync-btn">🔄 Sync</button>
+    <button class="btn btn-ghost btn-sm" onclick="if(typeof openWLArchiveBrowser==='function')openWLArchiveBrowser()" style="font-size:11px;">🗄 Deleted &amp; Held</button>
   </div>
   <div class="wl-stats">
     <div class="wl-stat slate"><label>Total</label><span id="wl-total">0</span></div>
@@ -5844,7 +5845,7 @@ Jazakallah Khayran.`
             ${c.isPolicyEffect?'<span class="policy-badge">⚠ not yet 6</span>':''}
             ${c._earlyBy?`<span class="chip" style="background:#fff3cd;color:#8a6210;font-weight:700;" title="Applied before their 6th birthday — their queue position counts from ${c.effectiveDate}, not their application date">🕐 Applied ${c._earlyBy} early</span>`:''}
             ${!c.isPolicyEffect&&c._admissibleFrom&&new Date(c._admissibleFrom)>new Date()?`<span class="chip" style="background:var(--warm,#faf6ee);color:var(--ink3);font-weight:600;" title="They're 6 and in the queue, but by the 1-September admissions rule they can't actually start until this date">📅 Can start from ${c._admissibleFrom}</span>`:''}
-            ${c._agedOut?`<span class="chip" style="background:#fee2e2;color:#b91c1c;font-weight:700;">⏰ Aged out (${c.calculatedAge})</span><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);padding:1px 6px;" onclick="event.stopPropagation();_wlDismissApplicant('${(typeof _wlKey==='function'?_wlKey(c.Firstname,c.Surname):'').replace(/'/g,"\\'")}','${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")}')">🚫 Remove</button>`:''}
+            ${c._agedOut?`<span class="chip" style="background:#fee2e2;color:#b91c1c;font-weight:700;">⏰ Aged out (${c.calculatedAge})</span><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red);padding:1px 6px;" onclick="event.stopPropagation();if(typeof openWLArchiveModal==='function')openWLArchiveModal(${_p12Idx})">🗑 Remove</button>`:''}
           </div>
         </td>
         <td class="hide-mobile">
@@ -5859,7 +5860,7 @@ Jazakallah Khayran.`
           ${c.DateSubmitted === 'Graduated' ? '🎓 Graduated' : `Applied ${c.DateSubmitted}`}
           ${c.effectiveDate && c.effectiveDate !== c.DateSubmitted ? `<div style="color:var(--maroon,#7a1f2b);font-weight:600;" title="Applied before their 6th birthday — their queue position counts from that birthday, not their application date, so applying early gains no advantage">Queued from ${c.effectiveDate}</div>` : ''}
         </td>
-        <td onclick="event.stopPropagation();${phone ? `openContactPopup('${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")} — Parent','${_p12Phone.replace(/'/g,"\\'")}')` : ''}" style="${phone?'cursor:pointer;':''}">
+        <td onclick="event.stopPropagation();${phone ? `if(typeof _wlNoteContact==='function')_wlNoteContact('${(typeof _wlKey==='function'?_wlKey(c.Firstname,c.Surname):'').replace(/'/g,"\\'")}','${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")}');openContactPopup('${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")} — Parent','${_p12Phone.replace(/'/g,"\\'")}')` : ''}" style="${phone?'cursor:pointer;':''}">
           <div style="font-size:11px;font-weight:600;">${name || '—'}</div>
           <div style="font-size:11px;color:var(--blue);${phone?'text-decoration:underline;':''}">${_p12Phone || '—'}</div>
         </td>
@@ -10406,6 +10407,7 @@ function _wlGetLive() {
   try { return JSON.parse(localStorage.getItem(_WL_LIVE_KEY) || '[]'); } catch(e) { return []; }
 }
 function _wlSaveLive(arr) { localStorage.setItem(_WL_LIVE_KEY, JSON.stringify(arr)); }
+window._wlGetLive = _wlGetLive; window._wlSaveLive = _wlSaveLive; // used by Phase 13's archive/delete flow, outside this IIFE
 
 // All plausible match keys for a name — handles multi-word surnames and
 // full names typed into one field ("Riyad Aslam Mooneegan")
@@ -11088,7 +11090,7 @@ window.openWLDetail = function(idx) {
     <div style="display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
       <span style="width:48px;flex:none;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink3);">${label}</span>
       <span style="font-weight:600;flex:1;">${p.Name || '—'}</span>
-      <span style="color:var(--blue);${p.Phone?'text-decoration:underline;cursor:pointer;':''}" ${p.Phone ? `onclick="event.stopPropagation();openContactPopup('${(p.Name||label).replace(/'/g,"\\'")}','${_p12FormatUKPhone(p.Phone).replace(/'/g,"\\'")}')"` : ''}>${p.Phone ? _p12FormatUKPhone(p.Phone) : '—'}</span>
+      <span style="color:var(--blue);${p.Phone?'text-decoration:underline;cursor:pointer;':''}" ${p.Phone ? `onclick="event.stopPropagation();if(typeof _wlNoteContact==='function')_wlNoteContact('${(typeof _wlKey==='function'?_wlKey(c.Firstname,c.Surname):'').replace(/'/g,"\\'")}','${(c.Firstname+' '+c.Surname).replace(/'/g,"\\'")}');openContactPopup('${(p.Name||label).replace(/'/g,"\\'")}','${_p12FormatUKPhone(p.Phone).replace(/'/g,"\\'")}')"` : ''}>${p.Phone ? _p12FormatUKPhone(p.Phone) : '—'}</span>
     </div>` : '';
 
   ov.innerHTML = `
@@ -11122,10 +11124,27 @@ window.openWLDetail = function(idx) {
           ${contactRow('Father', c.Father)}
           ${(!c.Mother || (!c.Mother.Name && !c.Mother.Phone)) && (!c.Father || (!c.Father.Name && !c.Father.Phone)) ? '<div style="font-size:12px;color:var(--ink3);font-style:italic;padding:6px 0;">No contact number on file</div>' : ''}
         </div>
-        ${canEdit() ? `<button class="btn btn-dark" style="width:100%;padding:11px;font-size:14px;margin-top:14px;" onclick="document.getElementById('p10-wl-detail').style.display='none';openWLEnrolPanel(${idx});">🎓 Enrol ${c.Firstname}</button>` : ''}
+        <div id="p10-comms-log" style="margin-top:10px;font-size:12px;color:var(--ink3);">Loading contact history…</div>
+        ${canEdit() ? `<div style="display:flex;gap:8px;margin-top:14px;">
+          <button class="btn btn-dark" style="flex:1;padding:11px;font-size:14px;" onclick="document.getElementById('p10-wl-detail').style.display='none';openWLEnrolPanel(${idx});">🎓 Enrol ${c.Firstname}</button>
+          <button class="btn btn-ghost" style="padding:11px 14px;font-size:14px;color:var(--red,#b91c1c);border-color:var(--red,#b91c1c);" onclick="if(typeof openWLArchiveModal==='function')openWLArchiveModal(${idx})">🗑 Remove / Hold</button>
+        </div>` : ''}
       </div>
     </div>`;
   ov.style.display = 'flex';
+
+  if (typeof _wlGetComms === 'function') {
+    _wlGetComms(_wlKey(c.Firstname, c.Surname)).then(entries => {
+      const el = document.getElementById('p10-comms-log');
+      if (!el) return;
+      if (!entries.length) { el.innerHTML = '<em>No contact recorded yet.</em>'; return; }
+      el.innerHTML = '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink3);margin-bottom:4px;">📋 Contact History</div>' +
+        entries.slice(0, 8).map(e => `<div style="padding:4px 0;border-bottom:1px solid var(--border);">
+          <strong>${e.channel}</strong>${e.type ? ' · ' + e.type : ''} — ${_p10FmtDate(e.date)} <span style="color:var(--ink3);">by ${e.by || 'staff'}</span>
+          ${e.note ? `<div style="font-style:italic;">${e.note}</div>` : ''}
+        </div>`).join('');
+    }).catch(() => {});
+  }
 };
 
 console.log('[Phase 10] Waiting-list detail view active');
@@ -11329,6 +11348,252 @@ _p12Style.textContent = `
 `;
 document.head.appendChild(_p12Style);
 console.log('[Phase 12] UK phone format + tap-anywhere row + row separators active');
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// PHASE 13 — Waiting-list Delete/Hold with reason capture,
+// year-long soft-delete + manual purge, defer-and-return holds that
+// preserve original position, and a communications log (provisioned
+// for a future Gmail/CRM sync, not built yet).
+//
+// New Sheets tabs (auto-created on first write, same as WLDismissed
+// and WLFormSync before them):
+//   WLArchive  — Key | Name | RecordJSON | Status | Reason | ActionDate | ActionBy | ResumeDate
+//   WLCommLog  — Key | Name | Date | Channel | Type | SentBy | Note
+// ══════════════════════════════════════════════════════════════
+(function() {
+'use strict';
+
+// ── Archive (Deleted / Held) storage ────────────────────────────
+async function _wlGetArchive() {
+  try {
+    const rows = await sheetsGet('WLArchive');
+    return rows.slice(1).filter(r => r[0]).map(r => ({
+      key: r[0], name: r[1],
+      record: (() => { try { return JSON.parse(r[2]); } catch(e) { return null; } })(),
+      status: r[3], reason: r[4] || '', actionDate: r[5] || '', actionBy: r[6] || '', resumeDate: r[7] || ''
+    }));
+  } catch(e) { return []; }
+}
+async function _wlSaveArchive(list) {
+  const rows = [['Key', 'Name', 'RecordJSON', 'Status', 'Reason', 'ActionDate', 'ActionBy', 'ResumeDate']];
+  list.forEach(a => rows.push([a.key, a.name, JSON.stringify(a.record), a.status, a.reason || '', a.actionDate || '', a.actionBy || '', a.resumeDate || '']));
+  await sheetsPost('WLArchive', rows);
+}
+window._wlGetArchive = _wlGetArchive;
+
+// ── Communications log ──────────────────────────────────────────
+// Provisioning note: this is a flat append-only log keyed by child, so a
+// future Gmail/CRM sync can push matching threads into the same tab/shape
+// without a schema change — just more rows with Channel:'Email (Gmail)'.
+async function _wlLogComm(key, name, channel, type, note) {
+  try {
+    let rows = await sheetsGet('WLCommLog');
+    if (!rows.length) rows = [['Key', 'Name', 'Date', 'Channel', 'Type', 'SentBy', 'Note']];
+    rows.push([key, name, new Date().toISOString(), channel, type || '', (typeof currentUser !== 'undefined' && currentUser) ? currentUser.email : '', note || '']);
+    await sheetsPost('WLCommLog', rows);
+  } catch(e) { console.warn('[WL comm log] failed to save:', e.message); }
+}
+async function _wlGetComms(key) {
+  try {
+    const rows = await sheetsGet('WLCommLog');
+    return rows.slice(1).filter(r => r[0] === key).map(r => ({ date: r[2], channel: r[3], type: r[4], by: r[5], note: r[6] || '' })).reverse();
+  } catch(e) { return []; }
+}
+window._wlLogComm = _wlLogComm;
+window._wlGetComms = _wlGetComms;
+
+// Wrap the existing message-send function so every WA/Email send is logged
+const _p13OrigSend = window._p11Send;
+window._p11Send = function(channel, msgType, idx) {
+  const wl = (typeof WAITING_LIST_DATA !== 'undefined') ? WAITING_LIST_DATA : [];
+  const c = wl[idx];
+  if (c) _wlLogComm(_wlKey(c.Firstname, c.Surname), c.Firstname + ' ' + c.Surname, channel === 'wa' ? 'WhatsApp' : 'Email', msgType === 'position' ? 'Position update' : 'Position available (offer)', '');
+  return _p13OrigSend.apply(this, arguments);
+};
+
+// Wrap the phone-tap contact popup used from the WL row/detail view so a
+// quick call/WA also gets logged. Reuses the app's existing Call/WhatsApp
+// confirmation popup — we just log intent-to-contact before opening it,
+// since neither tel: nor wa.me links can report back whether the call or
+// message actually went through.
+const _p13OrigContactPopup = window.openContactPopup;
+window.openContactPopup = function(name, phone) {
+  if (window._wlCommLogCtx) {
+    const ctx = window._wlCommLogCtx; window._wlCommLogCtx = null;
+    _wlLogComm(ctx.key, ctx.name, 'Phone (tapped)', 'Quick contact', '');
+  }
+  return _p13OrigContactPopup.apply(this, arguments);
+};
+// Call this immediately before invoking openContactPopup from WL markup
+window._wlNoteContact = function(key, name) { window._wlCommLogCtx = { key, name }; };
+
+// ── Delete / Hold modal ──────────────────────────────────────────
+window.openWLArchiveModal = function(idx) {
+  if (!canEdit()) { showToast('Editors only', 'red'); return; }
+  const wl = (typeof WAITING_LIST_DATA !== 'undefined') ? WAITING_LIST_DATA : [];
+  const c = wl[idx];
+  if (!c) return;
+  let ov = document.getElementById('p13-archive-modal');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'p13-archive-modal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9800;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const todayIso = new Date().toISOString().slice(0, 10);
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;width:100%;max-width:440px;padding:18px;" onclick="event.stopPropagation()">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;margin-bottom:4px;">Remove ${c.Firstname} ${c.Surname} from the active list?</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:12px;">Nothing is permanently deleted here — the record moves to the Deleted or Held list, fully recoverable.</div>
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink3);">What did the parent say? (optional but recommended)</label>
+      <textarea id="p13-reason" placeholder="e.g. Called mother 31 Aug — said they've enrolled elsewhere" style="width:100%;min-height:70px;margin:6px 0 14px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;"></textarea>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">🗑 Delete — not interested / declined</div>
+        <div style="font-size:11.5px;color:var(--ink3);margin-bottom:8px;">Kept for 1 year in case the family changes their mind, then flagged for an admin to permanently clear.</div>
+        <button class="btn btn-dark" style="width:100%;padding:9px;font-size:13px;background:var(--red,#b91c1c);" onclick="_wlConfirmDelete(${idx})">Delete</button>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:14px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">⏸ Hold — defer to a later date</div>
+        <div style="font-size:11.5px;color:var(--ink3);margin-bottom:8px;">Disappears from the queue until the date below, then rejoins automatically — keeping their original application date, so they lose no ground for deferring.</div>
+        <label style="font-size:11px;font-weight:600;color:var(--ink3);">Return to the list on</label>
+        <input type="date" id="p13-resume-date" value="${todayIso}" style="width:100%;padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 8px;box-sizing:border-box;">
+        <button class="btn btn-ghost" style="width:100%;padding:9px;font-size:13px;" onclick="_wlConfirmHold(${idx})">Hold</button>
+      </div>
+
+      <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="document.getElementById('p13-archive-modal').remove()">Cancel</button>
+    </div>`;
+  document.body.appendChild(ov);
+};
+
+async function _wlArchiveOut(idx, status, resumeDate) {
+  const wl = WAITING_LIST_DATA;
+  const c = wl[idx];
+  if (!c) return;
+  const key = _wlKey(c.Firstname, c.Surname);
+  const name = c.Firstname + ' ' + c.Surname;
+  const reason = (document.getElementById('p13-reason') || {}).value || '';
+  const by = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.email : '';
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const archive = await _wlGetArchive();
+    archive.push({ key, name, record: c, status, reason, actionDate: today, actionBy: by, resumeDate: resumeDate || '' });
+    await _wlSaveArchive(archive);
+    // Also add to WLDismissed so a future sync never re-imports this as "new"
+    // while archived (both deleted AND held children should stay excluded).
+    try {
+      let rows = await sheetsGet('WLDismissed');
+      if (!rows.length) rows = [['Key', 'Name', 'Date', 'By']];
+      rows.push([key, name, today, by]);
+      await sheetsPost('WLDismissed', rows);
+    } catch(e) {}
+    const i = wl.findIndex(x => _wlKey(x.Firstname, x.Surname) === key);
+    if (i >= 0) wl.splice(i, 1);
+    _wlSaveLive(_wlGetLive().filter(e => _wlKey(e.Firstname, e.Surname) !== key));
+    const modal = document.getElementById('p13-archive-modal'); if (modal) modal.remove();
+    const detail = document.getElementById('p10-wl-detail'); if (detail) detail.style.display = 'none';
+    try { renderWaitlist(); } catch(e) {}
+    showToast((status === 'held' ? '⏸ Held until ' + resumeDate : '🗑 Moved to Deleted') + ' — ' + name, 'green');
+  } catch(e) { showToast('❌ ' + e.message, 'red'); }
+}
+window._wlConfirmDelete = function(idx) { _wlArchiveOut(idx, 'deleted'); };
+window._wlConfirmHold = function(idx) {
+  const d = (document.getElementById('p13-resume-date') || {}).value;
+  if (!d) { showToast('Pick a return date first', 'red'); return; }
+  _wlArchiveOut(idx, 'held', d);
+};
+
+// ── Held records auto-return on their resume date ────────────────
+async function _wlCheckHeldResumes() {
+  const archive = await _wlGetArchive();
+  const today = new Date().toISOString().slice(0, 10);
+  const due = archive.filter(a => a.status === 'held' && a.resumeDate && a.resumeDate <= today && a.record);
+  if (!due.length) return;
+  const known = new Set(WAITING_LIST_DATA.map(c => _wlKey(c.Firstname, c.Surname)));
+  for (const a of due) {
+    if (!known.has(a.key)) { WAITING_LIST_DATA.push(a.record); known.add(a.key); }
+  }
+  await _wlSaveArchive(archive.filter(a => !due.includes(a)));
+  try { renderWaitlist(); } catch(e) {}
+  showToast('▶ ' + due.length + ' held applicant' + (due.length > 1 ? 's' : '') + ' returned to the waiting list', 'blue');
+}
+let _p13ResumeChecked = false;
+const _p13OrigRenderWL = renderWaitlist;
+renderWaitlist = function() {
+  _p13OrigRenderWL.apply(this, arguments);
+  if (!_p13ResumeChecked && typeof db !== 'undefined' && db.length) {
+    _p13ResumeChecked = true;
+    _wlCheckHeldResumes().catch(() => {});
+  }
+};
+
+// ── Browse Deleted / Held, restore, or permanently purge ─────────
+window.openWLArchiveBrowser = async function() {
+  let ov = document.getElementById('p13-browser');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'p13-browser';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9800;display:flex;align-items:flex-start;justify-content:center;padding:30px 12px;overflow-y:auto;';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:640px;width:100%;padding:18px;" onclick="event.stopPropagation()"><div style="text-align:center;color:var(--ink3);padding:20px;">Loading…</div></div>`;
+  document.body.appendChild(ov);
+
+  const archive = await _wlGetArchive();
+  const held = archive.filter(a => a.status === 'held');
+  const deletedRecent = archive.filter(a => a.status === 'deleted' && a.actionDate > new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10));
+  const purgeReady = archive.filter(a => a.status === 'deleted' && a.actionDate <= new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10));
+
+  const row = (a, actions) => `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12.5px;">
+    <div style="font-weight:700;">${a.name}</div>
+    <div style="color:var(--ink3);">${a.status === 'held' ? 'Return date: ' + a.resumeDate : 'Removed ' + a.actionDate} · by ${a.actionBy || 'staff'}</div>
+    ${a.reason ? `<div style="font-style:italic;margin-top:2px;">"${a.reason}"</div>` : ''}
+    <div style="display:flex;gap:6px;margin-top:6px;">${actions}</div>
+  </div>`;
+
+  const restoreBtn = key => `<button class="btn btn-ghost btn-sm" onclick="_wlRestoreArchived('${key.replace(/'/g,"\\'")}')">↩ Restore now</button>`;
+  const purgeBtn = key => `<button class="btn btn-ghost btn-sm" style="color:var(--red,#b91c1c);" onclick="_wlPurgeArchived('${key.replace(/'/g,"\\'")}')">✕ Delete permanently</button>`;
+
+  ov.querySelector('div').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div style="flex:1;font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:700;">Deleted &amp; Held Records</div>
+      <button onclick="document.getElementById('p13-browser').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);">✕</button>
+    </div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:6px;">⏸ On Hold (${held.length})</div>
+    ${held.length ? held.map(a => row(a, restoreBtn(a.key))).join('') : '<div style="font-size:12px;color:var(--ink3);font-style:italic;margin-bottom:10px;">None</div>'}
+    <div style="font-weight:700;font-size:13px;margin:14px 0 6px;">🗑 Deleted, under 1 year (${deletedRecent.length})</div>
+    ${deletedRecent.length ? deletedRecent.map(a => row(a, restoreBtn(a.key))).join('') : '<div style="font-size:12px;color:var(--ink3);font-style:italic;margin-bottom:10px;">None</div>'}
+    ${purgeReady.length ? `<div style="font-weight:700;font-size:13px;margin:14px 0 6px;color:var(--red,#b91c1c);">⚠ Ready to permanently delete — over 1 year old (${purgeReady.length})</div>
+    ${purgeReady.map(a => row(a, restoreBtn(a.key) + purgeBtn(a.key))).join('')}` : ''}
+  `;
+};
+
+window._wlRestoreArchived = async function(key) {
+  if (!canEdit()) { showToast('Editors only', 'red'); return; }
+  const archive = await _wlGetArchive();
+  const a = archive.find(x => x.key === key);
+  if (!a || !a.record) { showToast('Record not found', 'red'); return; }
+  if (!WAITING_LIST_DATA.some(c => _wlKey(c.Firstname, c.Surname) === key)) WAITING_LIST_DATA.push(a.record);
+  await _wlSaveArchive(archive.filter(x => x.key !== key));
+  try { renderWaitlist(); } catch(e) {}
+  showToast('↩ ' + a.name + ' restored to the waiting list', 'green');
+  openWLArchiveBrowser();
+};
+
+window._wlPurgeArchived = async function(key) {
+  if (!canEdit()) { showToast('Editors only', 'red'); return; }
+  const archive = await _wlGetArchive();
+  const a = archive.find(x => x.key === key);
+  if (!a) return;
+  if (!confirm('Permanently delete ' + a.name + '\'s record?\n\nThis cannot be undone.')) return;
+  await _wlSaveArchive(archive.filter(x => x.key !== key));
+  showToast('✕ Permanently deleted', 'green');
+  openWLArchiveBrowser();
+};
+
+console.log('[Phase 13] Delete/Hold archive + communications log active');
+})();
 </script>
 </body>
 </html>
