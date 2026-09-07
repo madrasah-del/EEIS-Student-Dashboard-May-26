@@ -344,4 +344,14 @@ if ($action === 'sort_range') {
   exit;
 }
 
+if ($action === 'get_range') {
+  $sheet = $_GET['sheet'] ?? fail(400, 'missing sheet');
+  $range = $_GET['range'] ?? fail(400, 'missing range');
+  $url = $base . "/worksheets('" . rawurlencode($sheet) . "')/range(address='" . $range . "')";
+  list($code, $data, $raw) = graph_call($url, $tokens['access_token']);
+  if ($code >= 300) fail(502, 'get range failed', $raw);
+  echo json_encode(['values' => $data['values'] ?? null, 'text' => $data['text'] ?? null]);
+  exit;
+}
+
 fail(400, 'unknown action');
