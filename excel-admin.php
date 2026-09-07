@@ -327,4 +327,21 @@ if ($action === 'delete_table') {
   exit;
 }
 
+if ($action === 'sort_range') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || empty($payload['range']) || empty($payload['fields'])) {
+    fail(400, 'body must be {sheet, range, fields: [{key, ascending}], has_headers?}');
+  }
+  $rangeUrl = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')/range(address='" . $payload['range'] . "')";
+  list($code, $data, $raw) = graph_call($rangeUrl . '/sort/apply', $tokens['access_token'], 'POST', [
+    'fields' => $payload['fields'],
+    'matchCase' => false,
+    'hasHeaders' => $payload['has_headers'] ?? true,
+  ]);
+  if ($code >= 300) fail(502, 'sort failed', $raw);
+  echo json_encode(['sorted' => true]);
+  exit;
+}
+
 fail(400, 'unknown action');
