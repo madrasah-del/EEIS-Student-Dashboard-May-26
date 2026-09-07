@@ -1,0 +1,6 @@
+# Microsoft Graph API credentials & OAuth token store — never commit.
+# ms_config.php must be created manually on the Hostinger server (see
+# ms_config.example.php for the format). ms_tokens.json is generated
+# automatically by oauth-callback.php after the one-time sign-in.
+ms_config.php
+ms_tokens.json

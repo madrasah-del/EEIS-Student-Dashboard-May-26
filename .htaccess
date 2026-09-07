@@ -8,3 +8,14 @@
     Header set Cache-Control "no-store"
   </FilesMatch>
 </IfModule>
+
+# Never serve the OneDrive token store or credentials directly
+<FilesMatch "^ms_(tokens\.json|config\.php)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
