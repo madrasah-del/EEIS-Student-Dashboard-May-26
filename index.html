@@ -10766,7 +10766,17 @@ async function _p8HandleFile(ev) {
 
 function _p8BuildDiff(mainRows, leftRows) {
   const H = mainRows[0].map(h => String(h || '').trim());
-  const col = name => H.findIndex(h => h.toLowerCase() === name.toLowerCase());
+  // Exact match first; if a header has been edited/annotated in Excel
+  // (e.g. "First Name" became "First Name of this year and Intake"),
+  // fall back to "starts with" so a wording tweak doesn't break the
+  // whole sync — the canonical names below are specific enough that
+  // this doesn't risk matching the wrong column.
+  const col = name => {
+    const lc = name.toLowerCase();
+    let i = H.findIndex(h => h.toLowerCase() === lc);
+    if (i < 0) i = H.findIndex(h => h.toLowerCase().startsWith(lc));
+    return i;
+  };
   const c = {
     fn: col('First Name'), sn: col('Surname'), dob: col('DOB'), age: col('Age'),
     gender: col('Gender'), cls: col('Class'), due: col('Fees Due'), paid: col('Fees Paid'),
