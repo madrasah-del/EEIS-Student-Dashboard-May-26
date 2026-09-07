@@ -11710,10 +11710,22 @@ function _p16DetectVanished(mainRows, leftRows) {
 
   const present = new Set();
   // Header-driven column lookup (matches the rest of Phase 8) so this stays
-  // correct if the sheet's column order ever changes.
+  // correct if the sheet's column order ever changes. Same exact-match-then
+  // -starts-with fallback as _p8BuildDiff's col() — without it, an edited
+  // header (e.g. "First Name" -> "First Name of this year and Intake")
+  // silently defeats this whole check before it ever runs, exactly as
+  // happened in practice on 7 Sept 2026.
   const H = mainRows[0].map(h => String(h || '').trim().toLowerCase());
-  const fnCol = H.indexOf('first name'), snCol = H.indexOf('surname');
-  if (fnCol < 0 || snCol < 0) return;
+  const findCol = name => {
+    let i = H.indexOf(name);
+    if (i < 0) i = H.findIndex(h => h.startsWith(name));
+    return i;
+  };
+  const fnCol = findCol('first name'), snCol = findCol('surname');
+  if (fnCol < 0 || snCol < 0) {
+    console.warn('[Phase 16] Could not find First Name/Surname columns — skipping vanished-student check this run.');
+    return;
+  }
   for (let r = 1; r < mainRows.length; r++) {
     const fn = mainRows[r][fnCol], sn = mainRows[r][snCol];
     if (String(fn||'').trim() && String(sn||'').trim()) present.add(_p16Key(fn, sn));
