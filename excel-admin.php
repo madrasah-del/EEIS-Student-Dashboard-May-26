@@ -67,7 +67,6 @@ if (empty($tokens['access_token']) || empty($tokens['expires_at']) || time() >= 
 $b64 = base64_encode($share);
 $b64 = rtrim(strtr($b64, '+/', '-_'), '=');
 $shareId = 'u!' . $b64;
-$base = 'https://graph.microsoft.com/v1.0/shares/' . $shareId . '/driveItem/workbook';
 
 function graph_call($url, $accessToken, $method = 'GET', $body = null, $retry_tokens = null) {
   $ch = curl_init($url);
@@ -86,7 +85,23 @@ function graph_call($url, $accessToken, $method = 'GET', $body = null, $retry_to
   return array($code, json_decode($resp, true), $resp);
 }
 
+// Resolve the share link to a direct drive+item id — the Workbook API
+// isn't supported when addressed via /shares/{id}/driveItem/workbook for
+// personal Microsoft accounts, but works via /drives/{id}/items/{id}.
+list($rcode, $rdata, $rraw) = graph_call('https://graph.microsoft.com/v1.0/shares/' . $shareId . '/driveItem?$select=id,parentReference', $tokens['access_token']);
+if ($rcode >= 300 || empty($rdata['id']) || empty($rdata['parentReference']['driveId'])) {
+  fail(502, 'could not resolve drive item', $rraw);
+}
+$driveId = $rdata['parentReference']['driveId'];
+$itemId = $rdata['id'];
+$base = "https://graph.microsoft.com/v1.0/drives/$driveId/items/$itemId/workbook";
+
 $action = $_GET['action'] ?? '';
+
+if ($action === 'resolve') {
+  echo json_encode(['driveId' => $driveId, 'itemId' => $itemId]);
+  exit;
+}
 
 if ($action === 'list_worksheets') {
   list($code, $data, $raw) = graph_call($base . '/worksheets', $tokens['access_token']);
