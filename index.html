@@ -4291,6 +4291,7 @@ function addInstalment(){
     document.getElementById('inst-notes').value='';
     if(document.getElementById('inst-receipt')) document.getElementById('inst-receipt').value='';
     showToast('✅ Payment of '+fmt(amt)+' saved — Receipt pg '+receipt,'green');
+    if (typeof _pushPaymentToExcel === 'function') _pushPaymentToExcel(s, {date, amount: amt, method, receipt});
   }).catch(e => {
     // Revert last instalment
     s.instalments.pop();
@@ -10941,20 +10942,60 @@ window._p8SetDiff = function(d) { _p8Diff = d; };
 // ── ExcelSyncLog — every applied Excel→App change, for a clear audit
 // trail of "did Excel change this, or did the app?" (first step toward
 // full two-way sync; App→Excel writes will append here too once built).
-async function _p8LogSyncEvent(diff) {
+async function _p8LogSyncEvent(diff, direction) {
+  direction = direction || 'Excel→App';
   try {
     let rows = await sheetsGet('ExcelSyncLog');
     if (!rows.length) rows = [['Date', 'Direction', 'Student', 'Field', 'Detail', 'By']];
     const now = new Date().toISOString();
     const by = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.email : 'Excel sync';
-    diff.addPay.forEach(p => rows.push([now, 'Excel→App', p.name || '', 'Payment', '£' + p.amount + ' (' + (p.method||'') + ')', by]));
-    diff.setField.forEach(u => u.changes.forEach(ch => rows.push([now, 'Excel→App', u.name || '', ch.f, String(ch.v), by])));
-    diff.newStudents.forEach(s => rows.push([now, 'Excel→App', (s['First Name']||'') + ' ' + (s['Surname']||''), 'New student', 'Added from Excel', by]));
-    diff.removals.forEach(r => rows.push([now, 'Excel→App', r.name || '', 'Removed', 'No longer in Excel', by]));
+    diff.addPay.forEach(p => rows.push([now, direction, p.name || '', 'Payment', '£' + p.amount + ' (' + (p.method||'') + ')', by]));
+    diff.setField.forEach(u => u.changes.forEach(ch => rows.push([now, direction, u.name || '', ch.f, String(ch.v), by])));
+    diff.newStudents.forEach(s => rows.push([now, direction, (s['First Name']||'') + ' ' + (s['Surname']||''), 'New student', 'Added from Excel', by]));
+    diff.removals.forEach(r => rows.push([now, direction, r.name || '', 'Removed', 'No longer in Excel', by]));
     await sheetsPost('ExcelSyncLog', rows);
   } catch(e) { console.warn('[ExcelSyncLog] failed to save:', e.message); }
 }
 window._p8LogSyncEvent = _p8LogSyncEvent;
+
+// ── App -> Excel push (first slice of two-way sync) ──────────────
+// Fire-and-forget: never blocks or reverts the Sheets save if this fails,
+// since Sheets remains the source of truth the app itself reads from.
+// Calls a narrowly-scoped endpoint (app-excel-write.php) that does NOT
+// carry the powerful admin key used elsewhere — it can only find a
+// student by name and fill their next free payment slot.
+async function _pushPaymentToExcel(student, payment) {
+  try {
+    const resp = await fetch('/app-excel-write.php', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        firstName: student['First Name'],
+        surname: student['Surname'],
+        date: payment.date,
+        amount: payment.amount,
+        method: payment.method,
+        receipt: payment.receipt,
+      })
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      console.warn('[App->Excel] payment push failed:', data.error, data.detail);
+      showToast('⚠️ Payment saved to app, but Excel push failed — will need manual entry', 'red');
+      return;
+    }
+    console.log('[App->Excel] payment pushed to', data.sheet, 'row', data.row, 'slot', data.slot);
+    if (typeof _p8LogSyncEvent === 'function') {
+      _p8LogSyncEvent({
+        addPay: [{name: student['First Name'] + ' ' + student['Surname'], amount: payment.amount, method: payment.method}],
+        setField: [], newStudents: [], removals: []
+      }, 'App→Excel');
+    }
+  } catch(e) {
+    console.warn('[App->Excel] payment push error:', e.message);
+  }
+}
+window._pushPaymentToExcel = _pushPaymentToExcel;
 
 // Inject 📥 Excel button next to the Audit button (Editor+)
 function _p8InjectBtn() {
