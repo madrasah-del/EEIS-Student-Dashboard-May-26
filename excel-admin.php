@@ -157,6 +157,13 @@ if ($action === 'apply_style') {
     list($code, $data, $raw) = graph_call($rangeUrl, $tokens['access_token'], 'PATCH', ['numberFormat' => $payload['number_format']]);
     $results['number_format'] = ($code < 300) ? 'ok' : $raw;
   }
+  if (isset($payload['horizontal_alignment']) || isset($payload['vertical_alignment'])) {
+    $alignBody = array();
+    if (isset($payload['horizontal_alignment'])) $alignBody['horizontalAlignment'] = $payload['horizontal_alignment'];
+    if (isset($payload['vertical_alignment'])) $alignBody['verticalAlignment'] = $payload['vertical_alignment'];
+    list($code, $data, $raw) = graph_call($rangeUrl . '/format', $tokens['access_token'], 'PATCH', $alignBody);
+    $results['alignment'] = ($code < 300) ? 'ok' : $raw;
+  }
   if (isset($payload['fill_color'])) {
     list($code, $data, $raw) = graph_call($rangeUrl . '/format/fill', $tokens['access_token'], 'PATCH', ['color' => $payload['fill_color']]);
     $results['fill_color'] = ($code < 300) ? 'ok' : $raw;
