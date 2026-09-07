@@ -1,0 +1,130 @@
+<?php
+// EEIS Excel admin — narrow, key-protected write operations against the
+// live OneDrive workbook via the Microsoft Graph Excel Workbook API.
+// This is NOT a public endpoint: every request must carry the correct
+// admin_key (stored only in ms_config.php, never in git). Only a small,
+// whitelisted set of actions is supported — this is not a generic
+// arbitrary-write API, to keep the blast radius small if the key ever
+// leaked.
+$share = 'https://1drv.ms/x/c/d75baed8553a3b22/IQBn7j_IL-uhSo7ErF2LPDcZAcb8dVYl3JuoXOevABBOPoE';
+$TOKEN_STORE = __DIR__ . '/ms_tokens.json';
+
+header('Content-Type: application/json');
+
+function fail($code, $msg, $detail = null) {
+  http_response_code($code);
+  echo json_encode(['error' => $msg, 'detail' => $detail]);
+  exit;
+}
+
+$CONFIG_FILE = __DIR__ . '/ms_config.php';
+if (!file_exists($CONFIG_FILE)) fail(500, 'ms_config.php missing');
+$config = require $CONFIG_FILE;
+
+if (empty($config['admin_key']) || !isset($_GET['key']) || !hash_equals($config['admin_key'], $_GET['key'])) {
+  fail(403, 'invalid or missing key');
+}
+
+$CLIENT_ID = $config['client_id'];
+$CLIENT_SECRET = $config['client_secret'];
+
+if (!file_exists($TOKEN_STORE)) fail(500, 'not connected — run oauth-callback.php first');
+$tokens = json_decode(file_get_contents($TOKEN_STORE), true);
+if (!$tokens || empty($tokens['refresh_token'])) fail(500, 'token store corrupt');
+
+function refresh_access_token($tokens, $CLIENT_ID, $CLIENT_SECRET, $TOKEN_STORE) {
+  $ch = curl_init('https://login.microsoftonline.com/common/oauth2/v2.0/token');
+  curl_setopt_array($ch, array(
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 30,
+    CURLOPT_POSTFIELDS => http_build_query(array(
+      'client_id' => $CLIENT_ID,
+      'client_secret' => $CLIENT_SECRET,
+      'refresh_token' => $tokens['refresh_token'],
+      'grant_type' => 'refresh_token',
+      'scope' => 'offline_access Files.ReadWrite User.Read',
+    )),
+  ));
+  $response = curl_exec($ch);
+  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+  $data = json_decode($response, true);
+  if ($code != 200 || empty($data['access_token'])) fail(502, 'token refresh failed', $response);
+  $new = array(
+    'access_token' => $data['access_token'],
+    'refresh_token' => !empty($data['refresh_token']) ? $data['refresh_token'] : $tokens['refresh_token'],
+    'expires_at' => time() + intval($data['expires_in']) - 60,
+  );
+  file_put_contents($TOKEN_STORE, json_encode($new, JSON_PRETTY_PRINT));
+  return $new;
+}
+
+if (empty($tokens['access_token']) || empty($tokens['expires_at']) || time() >= $tokens['expires_at']) {
+  $tokens = refresh_access_token($tokens, $CLIENT_ID, $CLIENT_SECRET, $TOKEN_STORE);
+}
+
+$b64 = base64_encode($share);
+$b64 = rtrim(strtr($b64, '+/', '-_'), '=');
+$shareId = 'u!' . $b64;
+$base = 'https://graph.microsoft.com/v1.0/shares/' . $shareId . '/driveItem/workbook';
+
+function graph_call($url, $accessToken, $method = 'GET', $body = null, $retry_tokens = null) {
+  $ch = curl_init($url);
+  $headers = array('Authorization: Bearer ' . $accessToken, 'Content-Type: application/json');
+  $opts = array(
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 60,
+    CURLOPT_HTTPHEADER => $headers,
+    CURLOPT_CUSTOMREQUEST => $method,
+  );
+  if ($body !== null) $opts[CURLOPT_POSTFIELDS] = json_encode($body);
+  curl_setopt_array($ch, $opts);
+  $resp = curl_exec($ch);
+  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+  return array($code, json_decode($resp, true), $resp);
+}
+
+$action = $_GET['action'] ?? '';
+
+if ($action === 'list_worksheets') {
+  list($code, $data, $raw) = graph_call($base . '/worksheets', $tokens['access_token']);
+  echo $raw;
+  exit;
+}
+
+if ($action === 'ensure_sheet') {
+  $name = $_GET['name'] ?? fail(400, 'missing name');
+  // Check if it already exists
+  list($code, $data) = graph_call($base . '/worksheets', $tokens['access_token']);
+  $exists = false;
+  if (!empty($data['value'])) {
+    foreach ($data['value'] as $ws) {
+      if ($ws['name'] === $name) { $exists = true; break; }
+    }
+  }
+  if (!$exists) {
+    list($code, $data, $raw) = graph_call($base . '/worksheets/add', $tokens['access_token'], 'POST', ['name' => $name]);
+    if ($code >= 300) fail(502, 'failed to create sheet', $raw);
+    echo json_encode(['created' => true, 'sheet' => $data]);
+  } else {
+    echo json_encode(['created' => false, 'already_existed' => true]);
+  }
+  exit;
+}
+
+if ($action === 'write_range') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || empty($payload['range']) || !isset($payload['values'])) {
+    fail(400, 'body must be {sheet, range, values}');
+  }
+  $url = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')/range(address='" . $payload['range'] . "')";
+  list($code, $data, $rresp) = graph_call($url, $tokens['access_token'], 'PATCH', ['values' => $payload['values']]);
+  if ($code >= 300) fail(502, 'write failed', $rresp);
+  echo $rresp;
+  exit;
+}
+
+fail(400, 'unknown action');
