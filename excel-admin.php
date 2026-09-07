@@ -173,4 +173,135 @@ if ($action === 'apply_style') {
   exit;
 }
 
+if ($action === 'set_tab_color') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || !isset($payload['color'])) {
+    fail(400, 'body must be {sheet, color}');
+  }
+  $url = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')";
+  list($code, $data, $raw) = graph_call($url, $tokens['access_token'], 'PATCH', ['tabColor' => $payload['color']]);
+  if ($code >= 300) fail(502, 'set tab color failed', $raw);
+  echo $raw;
+  exit;
+}
+
+if ($action === 'set_position') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || !isset($payload['position'])) {
+    fail(400, 'body must be {sheet, position}');
+  }
+  $url = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')";
+  list($code, $data, $raw) = graph_call($url, $tokens['access_token'], 'PATCH', ['position' => $payload['position']]);
+  if ($code >= 300) fail(502, 'set position failed', $raw);
+  echo $raw;
+  exit;
+}
+
+if ($action === 'freeze_panes') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet'])) fail(400, 'body must include {sheet, rows?, columns?}');
+  $rows = $payload['rows'] ?? 0;
+  $cols = $payload['columns'] ?? 0;
+  $wsUrl = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')";
+  $results = array();
+  if ($rows > 0) {
+    list($code, $data, $raw) = graph_call($wsUrl . '/freezePanes/freezeRows', $tokens['access_token'], 'POST', ['count' => $rows]);
+    $results['rows'] = ($code < 300) ? 'ok' : $raw;
+  }
+  if ($cols > 0) {
+    list($code, $data, $raw) = graph_call($wsUrl . '/freezePanes/freezeColumns', $tokens['access_token'], 'POST', ['count' => $cols]);
+    $results['columns'] = ($code < 300) ? 'ok' : $raw;
+  }
+  echo json_encode(['results' => $results]);
+  exit;
+}
+
+if ($action === 'add_table') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || empty($payload['range'])) {
+    fail(400, 'body must be {sheet, range, has_headers?, style?}');
+  }
+  $addr = "'" . $payload['sheet'] . "'!" . $payload['range'];
+  list($code, $data, $raw) = graph_call($base . '/tables/add', $tokens['access_token'], 'POST', [
+    'address' => $addr,
+    'hasHeaders' => $payload['has_headers'] ?? true,
+  ]);
+  if ($code >= 300) fail(502, 'add table failed', $raw);
+  if (!empty($payload['style']) && !empty($data['id'])) {
+    graph_call($base . "/tables('" . $data['id'] . "')", $tokens['access_token'], 'PATCH', ['style' => $payload['style']]);
+  }
+  echo json_encode(['table' => $data]);
+  exit;
+}
+
+if ($action === 'add_conditional_format') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || empty($payload['range']) || empty($payload['type'])) {
+    fail(400, 'body must be {sheet, range, type, ...type-specific fields}');
+  }
+  $rangeUrl = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')/range(address='" . $payload['range'] . "')";
+  list($code, $data, $raw) = graph_call($rangeUrl . '/conditionalFormats/add', $tokens['access_token'], 'POST', ['type' => $payload['type']]);
+  if ($code >= 300) fail(502, 'add conditional format failed', $raw);
+  $cfId = $data['id'] ?? null;
+  $cfUrl = $rangeUrl . "/conditionalFormats('" . $cfId . "')";
+
+  if ($payload['type'] === 'CellValue' && $cfId) {
+    list($c2, $d2, $r2) = graph_call($cfUrl . '/cellValue', $tokens['access_token'], 'PATCH', [
+      'rule' => ['formula1' => $payload['formula1'], 'operator' => $payload['operator']],
+      'format' => ['fill' => ['color' => $payload['fill_color']], 'font' => ['color' => $payload['font_color'] ?? '#000000']],
+    ]);
+    if ($c2 >= 300) fail(502, 'cellValue conditional format failed', $r2);
+  } elseif ($payload['type'] === 'DataBar' && $cfId) {
+    $dbBody = array();
+    if (!empty($payload['positive_color'])) $dbBody['positiveFormat'] = ['fillColor' => $payload['positive_color']];
+    list($c2, $d2, $r2) = graph_call($cfUrl . '/dataBar', $tokens['access_token'], 'PATCH', $dbBody);
+    if ($c2 >= 300) fail(502, 'dataBar conditional format failed', $r2);
+  }
+  echo json_encode(['conditionalFormat' => $data]);
+  exit;
+}
+
+if ($action === 'add_image') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || empty($payload['base64'])) {
+    fail(400, 'body must be {sheet, base64, left?, top?, width?, height?}');
+  }
+  $url = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')/images/add";
+  $body = ['base64Image' => 'data:image/jpeg;base64,' . $payload['base64']];
+  list($code, $data, $raw) = graph_call($url, $tokens['access_token'], 'POST', $body);
+  if ($code >= 300) fail(502, 'add image failed', $raw);
+  $imgId = $data['id'] ?? null;
+  if ($imgId) {
+    $updateBody = array();
+    if (isset($payload['left'])) $updateBody['left'] = $payload['left'];
+    if (isset($payload['top'])) $updateBody['top'] = $payload['top'];
+    if (isset($payload['width'])) $updateBody['width'] = $payload['width'];
+    if (isset($payload['height'])) $updateBody['height'] = $payload['height'];
+    if ($updateBody) {
+      graph_call($base . "/worksheets('" . rawurlencode($payload['sheet']) . "')/images('" . $imgId . "')", $tokens['access_token'], 'PATCH', $updateBody);
+    }
+  }
+  echo json_encode(['image' => $data]);
+  exit;
+}
+
+if ($action === 'set_view_options') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet'])) fail(400, 'body must include {sheet, showGridlines?}');
+  $url = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')";
+  $body = array();
+  if (isset($payload['showGridlines'])) $body['showGridlines'] = $payload['showGridlines'];
+  list($code, $data, $raw) = graph_call($url, $tokens['access_token'], 'PATCH', $body);
+  if ($code >= 300) fail(502, 'set view options failed', $raw);
+  echo $raw;
+  exit;
+}
+
 fail(400, 'unknown action');
