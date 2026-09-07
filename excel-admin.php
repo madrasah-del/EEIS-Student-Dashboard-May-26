@@ -142,4 +142,35 @@ if ($action === 'write_range') {
   exit;
 }
 
+if ($action === 'apply_style') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || empty($payload['range'])) {
+    fail(400, 'body must include {sheet, range, ...style fields}');
+  }
+  $rangeUrl = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')/range(address='" . $payload['range'] . "')";
+  $results = array();
+
+  if (isset($payload['number_format'])) {
+    // numberFormat expects a 2D array matching the range shape; a single
+    // string is broadcast by the caller pre-building the 2D array.
+    list($code, $data, $raw) = graph_call($rangeUrl, $tokens['access_token'], 'PATCH', ['numberFormat' => $payload['number_format']]);
+    $results['number_format'] = ($code < 300) ? 'ok' : $raw;
+  }
+  if (isset($payload['fill_color'])) {
+    list($code, $data, $raw) = graph_call($rangeUrl . '/format/fill', $tokens['access_token'], 'PATCH', ['color' => $payload['fill_color']]);
+    $results['fill_color'] = ($code < 300) ? 'ok' : $raw;
+  }
+  if (isset($payload['font_name']) || isset($payload['font_size']) || isset($payload['font_color'])) {
+    $fontBody = array();
+    if (isset($payload['font_name'])) $fontBody['name'] = $payload['font_name'];
+    if (isset($payload['font_size'])) $fontBody['size'] = $payload['font_size'];
+    if (isset($payload['font_color'])) $fontBody['color'] = $payload['font_color'];
+    list($code, $data, $raw) = graph_call($rangeUrl . '/format/font', $tokens['access_token'], 'PATCH', $fontBody);
+    $results['font'] = ($code < 300) ? 'ok' : $raw;
+  }
+  echo json_encode(['results' => $results]);
+  exit;
+}
+
 fail(400, 'unknown action');
