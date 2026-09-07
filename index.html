@@ -11692,7 +11692,19 @@ console.log('[Phase 13] Delete/Hold archive + communications log active');
 'use strict';
 
 const _P16_KEPT_KEY = 'eeis_p16_kept_v1'; // "false alarm, keep them" — per device
-function _p16Key(fn, sn) { return String(fn||'').trim().toLowerCase() + '|' + String(sn||'').trim().toLowerCase(); }
+// Same normalization as Phase 8's _p8Key/_p8Norm (inlined rather than
+// called directly — _p8Key lives inside Phase 8's own IIFE and was never
+// exposed on window, so referencing it here would silently fail exactly
+// the same cross-scope way several earlier bugs this session did). Strips
+// decorative characters (* ~ ? — common throughout this app's stored
+// names) and collapses whitespace before comparing. This function's
+// previous naive trim+lowercase version is exactly why it flagged 31
+// real, unchanged students as "vanished": _p8BuildDiff's payment-matching
+// (using the real _p8Key) correctly matched every one of them moments
+// earlier in the very same sync run — a stricter key here could only
+// ever produce false mismatches, never true ones.
+function _p16Norm(s) { return String(s || '').replace(/[*~^?]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase(); }
+function _p16Key(fn, sn) { return _p16Norm(fn) + '|' + _p16Norm(sn); }
 function _p16GetKept() { try { return new Set(JSON.parse(localStorage.getItem(_P16_KEPT_KEY)||'[]')); } catch(e) { return new Set(); } }
 function _p16SaveKept(s) { localStorage.setItem(_P16_KEPT_KEY, JSON.stringify([...s])); }
 
