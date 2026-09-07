@@ -354,4 +354,30 @@ if ($action === 'get_range') {
   exit;
 }
 
+if ($action === 'insert_range') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || empty($payload['range']) || empty($payload['shift'])) {
+    fail(400, 'body must be {sheet, range, shift: "Right"|"Down"}');
+  }
+  $url = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')/range(address='" . $payload['range'] . "')/insert";
+  list($code, $data, $raw) = graph_call($url, $tokens['access_token'], 'POST', ['shift' => $payload['shift']]);
+  if ($code >= 300) fail(502, 'insert failed', $raw);
+  echo $raw;
+  exit;
+}
+
+if ($action === 'delete_range') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || empty($payload['range']) || empty($payload['shift'])) {
+    fail(400, 'body must be {sheet, range, shift: "Left"|"Up"}');
+  }
+  $url = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')/range(address='" . $payload['range'] . "')/delete";
+  list($code, $data, $raw) = graph_call($url, $tokens['access_token'], 'POST', ['shift' => $payload['shift']]);
+  if ($code >= 300) fail(502, 'delete failed', $raw);
+  echo $raw;
+  exit;
+}
+
 fail(400, 'unknown action');
