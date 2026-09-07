@@ -10738,6 +10738,7 @@ async function _p8HandleFile(ev) {
   if (!file) return;
   const out = document.getElementById('p8-xl-result');
   out.innerHTML = '<div style="color:var(--gold-dk);">⏳ Reading ' + file.name + '…</div>';
+  let mainRows, leftRows; // hoisted so the catch block can inspect them for diagnostics
   try {
     await _p8LoadSheetJS();
     const buf = await file.arrayBuffer();
@@ -10745,12 +10746,21 @@ async function _p8HandleFile(ev) {
     const mainName = wbk.SheetNames.find(n => /student\s*database\s*20?25\s*-?\s*20?26/i.test(n));
     const leftName = wbk.SheetNames.find(n => /^left/i.test(n.trim()));
     if (!mainName) throw new Error('Could not find a "Student Database 2025-2026" tab. Tabs found: ' + wbk.SheetNames.join(', '));
-    const mainRows = XLSX.utils.sheet_to_json(wbk.Sheets[mainName], { header: 1, raw: false, defval: '' });
-    const leftRows = leftName ? XLSX.utils.sheet_to_json(wbk.Sheets[leftName], { header: 1, raw: false, defval: '' }) : [];
+    mainRows = XLSX.utils.sheet_to_json(wbk.Sheets[mainName], { header: 1, raw: false, defval: '' });
+    leftRows = leftName ? XLSX.utils.sheet_to_json(wbk.Sheets[leftName], { header: 1, raw: false, defval: '' }) : [];
     _p8Diff = _p8BuildDiff(mainRows, leftRows);
     _p8RenderPreview(out);
+    // Same review-before-remove check as the automatic sync — this was
+    // previously only wired into the OneDrive auto-sync path, so a manual
+    // upload could never catch a student deleted outright from Excel.
+    if (typeof _p16DetectVanished === 'function') _p16DetectVanished(mainRows, leftRows);
   } catch(e) {
-    out.innerHTML = '<div style="color:var(--red);">❌ ' + e.message + '</div>';
+    let msg = e.message;
+    if (/missing First Name/.test(msg) && mainRows && mainRows[0]) {
+      const row1 = mainRows[0].slice(0, 8).map(h => String(h||'').trim() || '(blank)').join(', ');
+      msg += '<br><span style="font-size:11px;color:var(--ink3);">Row 1 of that tab actually contains: ' + row1 + '&hellip; — the header row may not be where expected (e.g. a title row above it, or a different export layout).</span>';
+    }
+    out.innerHTML = '<div style="color:var(--red);">❌ ' + msg + '</div>';
   }
 }
 
