@@ -305,4 +305,19 @@ if ($action === 'set_view_options') {
   exit;
 }
 
+if ($action === 'list_tables') {
+  list($code, $data, $raw) = graph_call($base . '/tables', $tokens['access_token']);
+  echo $raw;
+  exit;
+}
+
+if ($action === 'delete_table') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['id'])) fail(400, 'body must be {id}');
+  list($code, $data, $raw) = graph_call($base . "/tables('" . $payload['id'] . "')", $tokens['access_token'], 'DELETE');
+  echo json_encode(['deleted' => $code < 300, 'detail' => $raw]);
+  exit;
+}
+
 fail(400, 'unknown action');
