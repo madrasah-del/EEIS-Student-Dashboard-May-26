@@ -272,7 +272,8 @@ if ($action === 'add_image') {
   if (!$payload || empty($payload['sheet']) || empty($payload['base64'])) {
     fail(400, 'body must be {sheet, base64, left?, top?, width?, height?}');
   }
-  $url = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')/images/add";
+  $betaBase = str_replace('/v1.0/', '/beta/', $base);
+  $url = $betaBase . "/worksheets('" . rawurlencode($payload['sheet']) . "')/images/add";
   $body = ['base64Image' => 'data:image/jpeg;base64,' . $payload['base64']];
   list($code, $data, $raw) = graph_call($url, $tokens['access_token'], 'POST', $body);
   if ($code >= 300) fail(502, 'add image failed', $raw);
