@@ -11015,9 +11015,9 @@ async function _p9AutoSync(manual) {
     } else if (!_p9SilentFailShown) {
       // A background failure was previously only ever logged to the
       // console — nobody would notice the sync had stopped working at
-      // all. Surface it once per session and point at the manual fallback.
+      // all. Surface it once per session so staff know to contact support.
       _p9SilentFailShown = true;
-      showToast('⚠️ Excel auto-sync is failing (' + e.message + ') — use 📤 Upload File instead', 'red');
+      showToast('⚠️ Excel auto-sync is failing (' + e.message + ')', 'red');
     }
   }
 }
@@ -11065,20 +11065,6 @@ function _p9InjectHeaderBtn() {
     _p9AutoSync(true).finally(() => { b.textContent = '🔄'; });
   };
   header.insertBefore(b, header.firstChild.nextSibling); // right after the sync pill
-
-  // Manual upload fallback — a separate code path that reads a locally
-  // picked file and never touches the OneDrive proxy at all, so it keeps
-  // working even while the live pull (excel-proxy.php) is broken.
-  if (!document.getElementById('p9-upload-btn')) {
-    const u = document.createElement('button');
-    u.id = 'p9-upload-btn';
-    u.className = 'hdr-btn';
-    u.title = 'Sync by uploading a downloaded copy of the Excel file';
-    u.style.cssText = 'min-height:36px;min-width:36px;';
-    u.textContent = '📤';
-    u.onclick = () => { if (typeof openExcelImportManual === 'function') openExcelImportManual(); };
-    header.insertBefore(u, b.nextSibling);
-  }
 }
 
 console.log('[Phase 9] Silent Excel auto-sync active (excel-proxy.php)');
