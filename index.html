@@ -10743,9 +10743,9 @@ async function _p8HandleFile(ev) {
     await _p8LoadSheetJS();
     const buf = await file.arrayBuffer();
     const wbk = XLSX.read(buf, { cellDates: true });
-    const mainName = wbk.SheetNames.find(n => /student\s*database\s*20?25\s*-?\s*20?26/i.test(n));
+    const mainName = _p8FindMainTab(wbk.SheetNames);
     const leftName = wbk.SheetNames.find(n => /^left/i.test(n.trim()));
-    if (!mainName) throw new Error('Could not find a "Student Database 2025-2026" tab. Tabs found: ' + wbk.SheetNames.join(', '));
+    if (!mainName) throw new Error('Could not find a "Student Database" tab. Tabs found: ' + wbk.SheetNames.join(', '));
     mainRows = XLSX.utils.sheet_to_json(wbk.Sheets[mainName], { header: 1, raw: false, defval: '' });
     leftRows = leftName ? XLSX.utils.sheet_to_json(wbk.Sheets[leftName], { header: 1, raw: false, defval: '' }) : [];
     _p8Diff = _p8BuildDiff(mainRows, leftRows);
@@ -10763,6 +10763,25 @@ async function _p8HandleFile(ev) {
     out.innerHTML = '<div style="color:var(--red);">❌ ' + msg + '</div>';
   }
 }
+
+// Picks the "Student Database X-Y" tab with the highest end year, so the
+// sync always targets whichever academic year is actually current without
+// needing a code change every September. A hardcoded year regex here was
+// the root cause of a real outage — after the 2026-27 migration, every
+// sync silently failed to find "Student Database 2025-2026" and stopped
+// updating the last-sync timestamp entirely.
+function _p8FindMainTab(sheetNames) {
+  const candidates = sheetNames.map(n => {
+    const m = n.match(/student\s*database\s*(\d{2,4})\s*-\s*(\d{2,4})/i);
+    if (!m) return null;
+    const endYear = parseInt(m[2].length === 2 ? '20' + m[2] : m[2], 10);
+    return { name: n, endYear };
+  }).filter(Boolean);
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => b.endYear - a.endYear);
+  return candidates[0].name;
+}
+window._p8FindMainTab = _p8FindMainTab;
 
 function _p8BuildDiff(mainRows, leftRows) {
   const H = mainRows[0].map(h => String(h || '').trim());
@@ -10969,9 +10988,9 @@ async function _p9AutoSync(manual) {
     const buf = await resp.arrayBuffer();
     await _p8LoadSheetJS();
     const wbk = XLSX.read(buf, { cellDates: true });
-    const mainName = wbk.SheetNames.find(n => /student\s*database\s*20?25\s*-?\s*20?26/i.test(n));
+    const mainName = _p8FindMainTab(wbk.SheetNames);
     const leftName = wbk.SheetNames.find(n => /^left/i.test(n.trim()));
-    if (!mainName) throw new Error('2025-2026 tab not found in the live Excel');
+    if (!mainName) throw new Error('No "Student Database" tab found in the live Excel');
     const mainRows = XLSX.utils.sheet_to_json(wbk.Sheets[mainName], { header: 1, raw: false, defval: '' });
     const leftRows = leftName ? XLSX.utils.sheet_to_json(wbk.Sheets[leftName], { header: 1, raw: false, defval: '' }) : [];
     const diff = _p8BuildDiff(mainRows, leftRows);
