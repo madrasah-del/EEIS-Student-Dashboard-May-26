@@ -350,7 +350,7 @@ if ($action === 'get_range') {
   $url = $base . "/worksheets('" . rawurlencode($sheet) . "')/range(address='" . $range . "')";
   list($code, $data, $raw) = graph_call($url, $tokens['access_token']);
   if ($code >= 300) fail(502, 'get range failed', $raw);
-  echo json_encode(['values' => $data['values'] ?? null, 'text' => $data['text'] ?? null]);
+  echo json_encode(['values' => $data['values'] ?? null, 'text' => $data['text'] ?? null, 'formulas' => $data['formulas'] ?? null]);
   exit;
 }
 
