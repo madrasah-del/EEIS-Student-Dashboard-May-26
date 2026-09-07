@@ -10959,6 +10959,12 @@ async function _p9AutoSync(manual) {
     // Sync genuinely completed — only now start the throttle window
     localStorage.setItem(_P9_LAST_KEY, String(Date.now()));
 
+    // Flag (never auto-remove) students who are in the app but no longer
+    // appear ANYWHERE in the Excel — including a plain row-delete that
+    // never went through the "Left 25-26" tab. Requires a human to confirm
+    // each one before anything is actually removed.
+    if (typeof _p16DetectVanished === 'function') _p16DetectVanished(mainRows, leftRows);
+
     if (diff.flagged.length) {
       console.warn('[Excel auto-sync] Not changed — review manually:');
       diff.flagged.forEach(f => console.warn('  ⚠️', f));
@@ -11624,6 +11630,135 @@ window._wlPurgeArchived = async function(key) {
 };
 
 console.log('[Phase 13] Delete/Hold archive + communications log active');
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// PHASE 16 — Detect students who've vanished from the OneDrive Excel
+// entirely (not just moved to "Left 25-26") and flag them for a human
+// to confirm before anything is removed. Per Javeed (31 Aug 2026):
+// a plain row-delete in Excel should be noticed and surfaced, not
+// silently ignored — but also never auto-applied without someone
+// actually deciding.
+// New Sheets tab: StudentArchive — Key | Name | RecordJSON | ActionDate | ActionBy
+// (full record kept, so removing here is exactly as recoverable as the
+// waiting-list archive already is)
+// ══════════════════════════════════════════════════════════════
+(function() {
+'use strict';
+
+const _P16_KEPT_KEY = 'eeis_p16_kept_v1'; // "false alarm, keep them" — per device
+function _p16Key(fn, sn) { return String(fn||'').trim().toLowerCase() + '|' + String(sn||'').trim().toLowerCase(); }
+function _p16GetKept() { try { return new Set(JSON.parse(localStorage.getItem(_P16_KEPT_KEY)||'[]')); } catch(e) { return new Set(); } }
+function _p16SaveKept(s) { localStorage.setItem(_P16_KEPT_KEY, JSON.stringify([...s])); }
+
+function _p16DetectVanished(mainRows, leftRows) {
+  if (typeof db === 'undefined' || !db.length) return;
+  // Safety guard: if the Excel read looks suspiciously thin (e.g. a
+  // partial load, a wrong sheet, network truncation), do NOT treat
+  // absence as meaningful — skip the check entirely rather than risk
+  // flagging real students as vanished off a bad read.
+  const excelCount = Math.max(0, mainRows.length - 1);
+  if (excelCount < db.length * 0.7) {
+    console.warn('[Phase 16] Excel read looks incomplete (' + excelCount + ' rows vs ' + db.length + ' students) — skipping vanished-student check this run.');
+    return;
+  }
+
+  const present = new Set();
+  // Header-driven column lookup (matches the rest of Phase 8) so this stays
+  // correct if the sheet's column order ever changes.
+  const H = mainRows[0].map(h => String(h || '').trim().toLowerCase());
+  const fnCol = H.indexOf('first name'), snCol = H.indexOf('surname');
+  if (fnCol < 0 || snCol < 0) return;
+  for (let r = 1; r < mainRows.length; r++) {
+    const fn = mainRows[r][fnCol], sn = mainRows[r][snCol];
+    if (String(fn||'').trim() && String(sn||'').trim()) present.add(_p16Key(fn, sn));
+  }
+  for (const row of leftRows) {
+    if (String(row[0]||'').trim() && String(row[1]||'').trim()) present.add(_p16Key(row[0], row[1]));
+  }
+
+  const kept = _p16GetKept();
+  const vanished = [];
+  db.forEach((s, idx) => {
+    const k = _p16Key(s['First Name'], s['Surname']);
+    if (!present.has(k) && !kept.has(k)) vanished.push({ idx, key: k, s });
+  });
+
+  if (vanished.length) _p16ShowReview(vanished);
+}
+window._p16DetectVanished = _p16DetectVanished;
+
+async function _p16GetArchive() {
+  try {
+    const rows = await sheetsGet('StudentArchive');
+    return rows.slice(1).filter(r => r[0]);
+  } catch(e) { return []; }
+}
+
+window._p16Remove = async function(idx, key) {
+  if (!canEdit()) { showToast('Editors only', 'red'); return; }
+  const s = db[idx];
+  if (!s) return;
+  const name = cleanName(s['First Name']) + ' ' + cleanName(s['Surname']);
+  if (!confirm('Remove ' + name + ' from the app?\n\nThey no longer appear anywhere in the Excel spreadsheet. Their full record (including payment history) is kept and can be restored — this is not permanent.')) return;
+  try {
+    let rows = await _p16GetArchive();
+    rows.unshift(['Key', 'Name', 'RecordJSON', 'ActionDate', 'ActionBy']); // header always first when writing back
+    rows.push([key, name, JSON.stringify(s), new Date().toISOString().slice(0,10), (typeof currentUser !== 'undefined' && currentUser) ? currentUser.email : '']);
+    await sheetsPost('StudentArchive', rows);
+    db.splice(idx, 1);
+    filtered = [...db];
+    try { renderDashboard(); applyFilters(); } catch(e) {}
+    await saveDb();
+    showToast('🗑 ' + name + ' removed — recoverable from StudentArchive', 'green');
+    const row = document.getElementById('p16-row-' + key.replace(/[^a-z0-9]/g,'_'));
+    if (row) row.remove();
+  } catch(e) { showToast('❌ ' + e.message, 'red'); }
+};
+
+window._p16Keep = function(key, btnEl) {
+  const kept = _p16GetKept();
+  kept.add(key);
+  _p16SaveKept(kept);
+  showToast('✅ Marked as fine — won\'t ask again unless they reappear then vanish again', 'green');
+  const row = document.getElementById('p16-row-' + key.replace(/[^a-z0-9]/g,'_'));
+  if (row) row.remove();
+};
+
+function _p16ShowReview(vanished) {
+  let ov = document.getElementById('p16-review');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'p16-review';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9900;display:flex;align-items:flex-start;justify-content:center;padding:30px 12px;overflow-y:auto;';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const rows = vanished.map(({idx, key, s}) => {
+    const name = cleanName(s['First Name']) + ' ' + cleanName(s['Surname']);
+    const rowId = 'p16-row-' + key.replace(/[^a-z0-9]/g,'_');
+    return `<div id="${rowId}" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:13px;">
+      <div style="font-weight:700;">${name}</div>
+      <div style="color:var(--ink3);font-size:12px;">Class ${s['Class']||'?'} · Fees due £${s['Fees Due']||0} · paid £${(typeof computePaid==='function'?computePaid(s):s['Fees Paid'])||0}</div>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button class="btn btn-ghost btn-sm" style="color:var(--red,#b91c1c);" onclick="_p16Remove(${idx},'${key.replace(/'/g,"\\'")}')">🗑 Remove from app</button>
+        <button class="btn btn-ghost btn-sm" onclick="_p16Keep('${key.replace(/'/g,"\\'")}')">✅ Keep — false alarm</button>
+      </div>
+    </div>`;
+  }).join('');
+  ov.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;padding:18px;" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <div style="flex:1;font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:700;">⚠️ ${vanished.length} student${vanished.length>1?'s':''} no longer in the Excel</div>
+      <button onclick="document.getElementById('p16-review').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);">✕</button>
+    </div>
+    <div style="font-size:12.5px;color:var(--ink3);margin-bottom:12px;">These students are in the app but couldn't be found anywhere in the live OneDrive spreadsheet — including the "Left 25-26" tab. This can happen if a row was deleted directly rather than moved to Left. Nothing has been changed — review each one below.</div>
+    ${rows}
+  </div>`;
+  document.body.appendChild(ov);
+  showToast('⚠️ ' + vanished.length + ' student' + (vanished.length>1?'s':'') + ' missing from Excel — review needed', 'red');
+}
+
+console.log('[Phase 16] Vanished-student detection (review-before-remove) active');
 })();
 </script>
 </body>
