@@ -10928,6 +10928,7 @@ function _p8ApplyImport() {
     showToast('✅ Excel sync complete — ' + n + ' changes saved', 'green');
     const ovl = document.getElementById('p8-xl-overlay');
     if (ovl) ovl.remove();
+    if (typeof _p8LogSyncEvent === 'function') _p8LogSyncEvent(d);
     _p8Diff = null;
   }).catch(e => showToast('❌ Save failed: ' + e.message + ' — reload before retrying', 'red'));
 }
@@ -10936,6 +10937,24 @@ window._p8ApplyImport = _p8ApplyImport;
 window._p8LoadSheetJS = _p8LoadSheetJS;
 window._p8BuildDiff = _p8BuildDiff;
 window._p8SetDiff = function(d) { _p8Diff = d; };
+
+// ── ExcelSyncLog — every applied Excel→App change, for a clear audit
+// trail of "did Excel change this, or did the app?" (first step toward
+// full two-way sync; App→Excel writes will append here too once built).
+async function _p8LogSyncEvent(diff) {
+  try {
+    let rows = await sheetsGet('ExcelSyncLog');
+    if (!rows.length) rows = [['Date', 'Direction', 'Student', 'Field', 'Detail', 'By']];
+    const now = new Date().toISOString();
+    const by = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.email : 'Excel sync';
+    diff.addPay.forEach(p => rows.push([now, 'Excel→App', p.name || '', 'Payment', '£' + p.amount + ' (' + (p.method||'') + ')', by]));
+    diff.setField.forEach(u => u.changes.forEach(ch => rows.push([now, 'Excel→App', u.name || '', ch.f, String(ch.v), by])));
+    diff.newStudents.forEach(s => rows.push([now, 'Excel→App', (s['First Name']||'') + ' ' + (s['Surname']||''), 'New student', 'Added from Excel', by]));
+    diff.removals.forEach(r => rows.push([now, 'Excel→App', r.name || '', 'Removed', 'No longer in Excel', by]));
+    await sheetsPost('ExcelSyncLog', rows);
+  } catch(e) { console.warn('[ExcelSyncLog] failed to save:', e.message); }
+}
+window._p8LogSyncEvent = _p8LogSyncEvent;
 
 // Inject 📥 Excel button next to the Audit button (Editor+)
 function _p8InjectBtn() {
