@@ -3877,7 +3877,8 @@ function parseStaffRows(raw) {
     notes:         String(row[col['Notes']]        ||''),
     gender:        String(row[col['Gender']]       ||''),
     isHead:        String(row[col['IsHead']]||'').toLowerCase()==='true',
-    isVolunteer:   String(row[col['IsVolunteer']]||'').toLowerCase()==='true'
+    isVolunteer:   String(row[col['IsVolunteer']]||'').toLowerCase()==='true',
+    status:        String(row[col['Status']]||'Active') || 'Active'
   }));
 }
 
@@ -3919,13 +3920,13 @@ function studentsToRows() {
 }
 
 function staffToRows() {
-  const headers = ['Name','Role','Phone','Email','Class','Rate','Attendance','DBS Date','DBS Status','Address','Notes','Gender','IsHead','IsVolunteer'];
+  const headers = ['Name','Role','Phone','Email','Class','Rate','Attendance','DBS Date','DBS Status','Address','Notes','Gender','IsHead','IsVolunteer','Status'];
   const rows = staffDb.map(s => [
     s.name||'', s.role||'', s.phone||'', s.email||'',
     s.assignedClass||'', s.ratePerSession||'',
     JSON.stringify(s.attendance||{}),
     s.dbsDate||'', s.dbsStatus||'', s.address||'', s.notes||'', s.gender||'',
-    s.isHead?'true':'false', s.isVolunteer?'true':'false'
+    s.isHead?'true':'false', s.isVolunteer?'true':'false', s.status||'Active'
   ]);
   return [headers, ...rows];
 }
@@ -4941,13 +4942,14 @@ function calcMonthlyPay(staff, year, month) {
 }
 
 function calcTotalMonthlyPayroll(year, month) {
-  return staffDb.reduce((t, s) => t + calcMonthlyPay(s, year, month), 0);
+  return staffDb.filter(s => (s.status||'Active') !== 'Left').reduce((t, s) => t + calcMonthlyPay(s, year, month), 0);
 }
 
 // Render staff grid
 function renderStaffGrid() {
   const grid = document.getElementById('staff-grid');
-  if (!staffDb.length) {
+  const activeStaff = staffDb.filter(s => (s.status||'Active') !== 'Left');
+  if (!activeStaff.length) {
     grid.innerHTML = '<div style="text-align:center;padding:32px;color:var(--ink3);grid-column:1/-1;">No staff added yet. Click <strong>+ Add Staff</strong> above to get started.</div>';
     renderPayrollBanner();
     return;
@@ -4957,7 +4959,8 @@ function renderStaffGrid() {
   const year = now.getFullYear(), month = now.getMonth();
   const sats = getSaturdaysInMonth(year, month);
 
-  grid.innerHTML = staffDb.map((s, i) => {
+  grid.innerHTML = activeStaff.map((s) => {
+    const i = staffDb.indexOf(s);
     const initials = s.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const roleClass = s.role === 'Teacher' ? 'teacher' : 'volunteer';
     const monthPay = calcMonthlyPay(s, year, month);
@@ -5006,9 +5009,10 @@ function renderStaffGrid() {
 
 function renderPayrollBanner() {
   const now = new Date();
-  const total = staffDb.length;
-  const teachers = staffDb.filter(s => s.role === 'Teacher').length;
-  const volunteers = staffDb.filter(s => s.role === 'Volunteer').length;
+  const activeStaff = staffDb.filter(s => (s.status||'Active') !== 'Left');
+  const total = activeStaff.length;
+  const teachers = activeStaff.filter(s => s.role === 'Teacher').length;
+  const volunteers = activeStaff.filter(s => s.role === 'Volunteer').length;
   const payroll = calcTotalMonthlyPayroll(now.getFullYear(), now.getMonth());
   document.getElementById('pr-total').textContent = total;
   document.getElementById('pr-teachers').textContent = teachers;
@@ -6863,6 +6867,7 @@ function getDbsBadge(s) {
 
 function checkDbsAlerts() {
   const alerts = staffDb.filter(s => {
+    if ((s.status||'Active') === 'Left') return false;
     const st = getDbsStatus(s);
     return st === 'expired' || st === 'expiring' || st === 'pending';
   });
@@ -7169,14 +7174,15 @@ saveStaffMember = function() {
 // ── staffToRows — include all new fields ──
 staffToRows = function() {
   const headers = ['Name','Role','Gender','Phone','Email','Address','Class','Rate',
-    'DBSDate','DBSStatus','LastRateReview','RateReviewNotes','Notes','IsHead','IsVolunteer','Attendance'];
+    'DBSDate','DBSStatus','LastRateReview','RateReviewNotes','Notes','IsHead','IsVolunteer','Attendance','Status'];
   const rows = staffDb.map(s => [
     s.name||'', s.role||'', s.gender||'', s.phone||'', s.email||'', s.address||'',
     s.assignedClass||'', s.ratePerSession||'',
     s.dbsDate||'', s.dbsStatus||'',
     s.lastRateReview||'', s.rateReviewNotes||'', s.notes||'',
     s.isHead?'Y':'N', s.isVolunteer?'Y':'N',
-    JSON.stringify(s.attendance||{})
+    JSON.stringify(s.attendance||{}),
+    s.status||'Active'
   ]);
   return [headers, ...rows];
 };
@@ -7203,7 +7209,8 @@ parseStaffRows = function(raw) {
     notes:          String(row[col['Notes']]         ||''),
     isHead:         String(row[col['IsHead']]||'').toUpperCase() === 'Y',
     isVolunteer:    String(row[col['IsVolunteer']]||'').toUpperCase() === 'Y',
-    attendance:     (() => { try { return JSON.parse(row[col['Attendance']]||'{}'); } catch(e){ return {}; } })()
+    attendance:     (() => { try { return JSON.parse(row[col['Attendance']]||'{}'); } catch(e){ return {}; } })(),
+    status:         String(row[col['Status']]||'Active') || 'Active'
   }));
 };
 
@@ -8658,26 +8665,16 @@ function _p6_openStaffDetail(idx) {
   const initials = s.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
   const roleClass = s.isVolunteer ? 'volunteer' : 'teacher';
 
-  // DBS section
+  // DBS section — uses the same dbsDate/dbsStatus fields synced from Excel
   const dbsSection = (() => {
-    if (!s.dbsExpiry) return '<p style="color:var(--ink3);font-size:13px;">No DBS expiry recorded.</p>';
-    const exp = new Date(s.dbsExpiry);
-    const now = new Date();
-    const days = Math.ceil((exp - now) / 86400000);
-    const weeks = Math.ceil(days / 7);
-    let badge, colour;
-    if (days < 0) { badge = '✗ Expired'; colour = '#ef4444'; }
-    else if (days < 90) { badge = `⚠️ Due in ${weeks} weeks`; colour = '#f59e0b'; }
-    else { badge = '✓ Valid'; colour = 'var(--green)'; }
+    if (!s.dbsDate && !s.dbsStatus) return '<p style="color:var(--ink3);font-size:13px;">No DBS record on file.</p>';
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px;background:#f9fafb;border-radius:8px;">
       <div style="font-size:28px;">🪪</div>
       <div>
         <div style="font-weight:700;font-size:13px;">DBS Certificate</div>
-        <div style="font-size:12px;color:var(--ink3);">Expires: ${s.dbsExpiry}</div>
-        <div style="font-size:13px;font-weight:600;color:${colour};margin-top:2px;">${badge}</div>
+        <div style="font-size:13px;font-weight:600;margin-top:2px;">${typeof getDbsBadge === 'function' ? getDbsBadge(s) : (s.dbsStatus||'Unknown')}</div>
       </div>
-    </div>
-    ${s.dbsNotes ? `<div style="margin-top:8px;font-size:12px;color:var(--ink3);">${s.dbsNotes}</div>` : ''}`;
+    </div>`;
   })();
 
   // Pay/attendance section
