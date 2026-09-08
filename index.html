@@ -3705,6 +3705,15 @@ let db = [];       // Always starts empty — populated by loadFromSheets()
 let filtered = []; // Set after db loads
 let sortKey = 'First Name', sortAsc = true;
 let curPage = 1, activeIdx = -1;
+// Declared here (not down by the rest of the staff-database code) because
+// a returning user's restored-session fast path calls enterApp() — which
+// touches staffDb — synchronously, before the script's later `let staffDb`
+// line would otherwise have run. That left-in-TDZ state was permanent for
+// the rest of the page's life, silently breaking every staffDb-dependent
+// feature (including the Excel sync button/auto-sync) for anyone who
+// wasn't freshly signing in that session.
+let staffDb = [];
+let editingStaffIdx = -1;
 const PG = 20;
 let cfg = loadCfg();
 
@@ -4548,8 +4557,8 @@ setInterval(updateSyncLabel, 60000);
 // SPRINT 2: STAFF DATABASE
 // ══════════════════════════════════════════════════════════════
 const STAFF_KEY = 'eeis_staff_v3';
-let staffDb = [];
-let editingStaffIdx = -1;
+// staffDb / editingStaffIdx are declared much earlier in the file — see
+// the comment near `let db = [];` for why.
 
 // ── Seed data (your real staff — 17 members) ──
 const STAFF_SEED = [
