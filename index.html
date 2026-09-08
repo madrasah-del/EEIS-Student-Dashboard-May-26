@@ -4542,7 +4542,15 @@ setInterval(updateSyncLabel, 60000);
     const userRec = loadUsersCache()[session.email];
     if (userRec && userRec.status === 'approved') {
       currentUser = session;
-      enterApp();
+      // Deferred to a macrotask so this runs AFTER the rest of this
+      // <script> tag has finished executing — including the later
+      // sprint-override blocks (Excel sync, etc.) that wrap
+      // renderDashboard(). Called synchronously here, this fast
+      // returning-user path fired the very first render before those
+      // wrappers existed, so button-injection/auto-sync silently never
+      // ran for anyone whose session was restored (i.e. almost everyone,
+      // every day) — only a truly fresh sign-in avoided it by chance.
+      setTimeout(enterApp, 0);
       return;
     }
   }
