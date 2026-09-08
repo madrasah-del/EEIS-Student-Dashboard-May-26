@@ -165,6 +165,10 @@ if ($action === 'apply_style') {
     list($code, $data, $raw) = graph_call($rangeUrl . '/format', $tokens['access_token'], 'PATCH', ['rowHeight' => $payload['row_height']]);
     $results['row_height'] = ($code < 300) ? 'ok' : $raw;
   }
+  if (isset($payload['column_width'])) {
+    list($code, $data, $raw) = graph_call($rangeUrl . '/format', $tokens['access_token'], 'PATCH', ['columnWidth' => $payload['column_width']]);
+    $results['column_width'] = ($code < 300) ? 'ok' : $raw;
+  }
   if (isset($payload['horizontal_alignment']) || isset($payload['vertical_alignment'])) {
     $alignBody = array();
     if (isset($payload['horizontal_alignment'])) $alignBody['horizontalAlignment'] = $payload['horizontal_alignment'];
