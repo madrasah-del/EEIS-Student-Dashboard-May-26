@@ -10790,7 +10790,7 @@ async function _p8HandleFile(ev) {
     // Same review-before-remove check as the automatic sync — this was
     // previously only wired into the OneDrive auto-sync path, so a manual
     // upload could never catch a student deleted outright from Excel.
-    if (typeof _p16DetectVanished === 'function') _p16DetectVanished(mainRows, leftRows);
+    if (typeof _p16DetectVanished === 'function') _p16DetectVanished(mainRows, leftRows, g5Rows);
   } catch(e) {
     let msg = e.message;
     if (/missing First Name/.test(msg) && mainRows && mainRows[0]) {
@@ -11207,7 +11207,7 @@ async function _p9AutoSync(manual) {
     // appear ANYWHERE in the Excel — including a plain row-delete that
     // never went through the "Left 25-26" tab. Requires a human to confirm
     // each one before anything is actually removed.
-    if (typeof _p16DetectVanished === 'function') _p16DetectVanished(mainRows, leftRows);
+    if (typeof _p16DetectVanished === 'function') _p16DetectVanished(mainRows, leftRows, g5Rows);
 
     if (diff.flagged.length) {
       console.warn('[Excel auto-sync] Not changed — review manually:');
@@ -11918,13 +11918,13 @@ function _p16Key(fn, sn) { return _p16Norm(fn) + '|' + _p16Norm(sn); }
 function _p16GetKept() { try { return new Set(JSON.parse(localStorage.getItem(_P16_KEPT_KEY)||'[]')); } catch(e) { return new Set(); } }
 function _p16SaveKept(s) { localStorage.setItem(_P16_KEPT_KEY, JSON.stringify([...s])); }
 
-function _p16DetectVanished(mainRows, leftRows) {
+function _p16DetectVanished(mainRows, leftRows, g5Rows) {
   if (typeof db === 'undefined' || !db.length) return;
   // Safety guard: if the Excel read looks suspiciously thin (e.g. a
   // partial load, a wrong sheet, network truncation), do NOT treat
   // absence as meaningful — skip the check entirely rather than risk
   // flagging real students as vanished off a bad read.
-  const excelCount = Math.max(0, mainRows.length - 1);
+  const excelCount = Math.max(0, mainRows.length - 1) + Math.max(0, g5Rows ? g5Rows.length - 1 : 0);
   if (excelCount < db.length * 0.7) {
     console.warn('[Phase 16] Excel read looks incomplete (' + excelCount + ' rows vs ' + db.length + ' students) — skipping vanished-student check this run.');
     return;
@@ -11937,21 +11937,23 @@ function _p16DetectVanished(mainRows, leftRows) {
   // header (e.g. "First Name" -> "First Name of this year and Intake")
   // silently defeats this whole check before it ever runs, exactly as
   // happened in practice on 7 Sept 2026.
-  const H = mainRows[0].map(h => String(h || '').trim().toLowerCase());
-  const findCol = name => {
-    let i = H.indexOf(name);
-    if (i < 0) i = H.findIndex(h => h.startsWith(name));
-    return i;
+  const addFromTab = (rows) => {
+    if (!rows || !rows.length) return;
+    const H = rows[0].map(h => String(h || '').trim().toLowerCase());
+    const findCol = name => {
+      let i = H.indexOf(name);
+      if (i < 0) i = H.findIndex(h => h.startsWith(name));
+      return i;
+    };
+    const fnCol = findCol('first name'), snCol = findCol('surname');
+    if (fnCol < 0 || snCol < 0) return;
+    for (let r = 1; r < rows.length; r++) {
+      const fn = rows[r][fnCol], sn = rows[r][snCol];
+      if (String(fn||'').trim() && String(sn||'').trim()) present.add(_p16Key(fn, sn));
+    }
   };
-  const fnCol = findCol('first name'), snCol = findCol('surname');
-  if (fnCol < 0 || snCol < 0) {
-    console.warn('[Phase 16] Could not find First Name/Surname columns — skipping vanished-student check this run.');
-    return;
-  }
-  for (let r = 1; r < mainRows.length; r++) {
-    const fn = mainRows[r][fnCol], sn = mainRows[r][snCol];
-    if (String(fn||'').trim() && String(sn||'').trim()) present.add(_p16Key(fn, sn));
-  }
+  addFromTab(mainRows);
+  addFromTab(g5Rows); // G5 students live in their own tab — this was previously never checked, which is exactly what wrongly flagged every G5 student (including Salma) as "vanished" on every sync.
   for (const row of leftRows) {
     if (String(row[0]||'').trim() && String(row[1]||'').trim()) present.add(_p16Key(row[0], row[1]));
   }
@@ -11976,8 +11978,18 @@ async function _p16GetArchive() {
 
 window._p16Remove = async function(idx, key) {
   if (!canEdit()) { showToast('Editors only', 'red'); return; }
-  const s = db[idx];
-  if (!s) return;
+  // idx is only a hint from when the review list was first built — if any
+  // OTHER flagged student in the same review was already removed, every
+  // index after it has shifted and idx now points at the wrong record.
+  // This previously caused real students to be deleted by mistake whenever
+  // more than one row was removed in the same sitting. Re-find the actual
+  // row by its stable name key instead of trusting the stale index.
+  let s = db[idx];
+  if (!s || _p16Key(s['First Name'], s['Surname']) !== key) {
+    idx = db.findIndex(x => _p16Key(x['First Name'], x['Surname']) === key);
+    s = idx >= 0 ? db[idx] : null;
+  }
+  if (!s) { showToast('Already removed or not found', 'red'); return; }
   const name = cleanName(s['First Name']) + ' ' + cleanName(s['Surname']);
   if (!confirm('Remove ' + name + ' from the app?\n\nThey no longer appear anywhere in the Excel spreadsheet. Their full record (including payment history) is kept and can be restored — this is not permanent.')) return;
   try {
