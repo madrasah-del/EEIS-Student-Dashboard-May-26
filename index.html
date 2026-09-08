@@ -4550,9 +4550,18 @@ setInterval(updateSyncLabel, 60000);
       // wrappers existed, so button-injection/auto-sync silently never
       // ran for anyone whose session was restored (i.e. almost everyone,
       // every day) — only a truly fresh sign-in avoided it by chance.
-      window.__p9Debug = window.__p9Debug || {};
-      window.__p9Debug.deferredEnterAppScheduled = Date.now();
-      setTimeout(() => { window.__p9Debug.deferredEnterAppFired = Date.now(); enterApp(); }, 0);
+      // A plain setTimeout(fn, 0) here fires before later <script> tags
+      // further down the document have even been parsed yet (verified —
+      // it's not just "next macrotask", the HTML parser can yield to
+      // pending timers mid-document). DOMContentLoaded is the actual
+      // guarantee that every inline script tag, including the sprint-
+      // override blocks that wrap renderDashboard() near the end of the
+      // file, has finished running.
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', enterApp, { once: true });
+      } else {
+        enterApp();
+      }
       return;
     }
   }
