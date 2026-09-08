@@ -3860,6 +3860,9 @@ function parseStaffRows(raw) {
   const headers = raw[0].map(h => String(h).trim());
   const col = {};
   headers.forEach((h,i) => col[h]=i);
+  // DBS/Address/Notes/Gender/IsHead/IsVolunteer are newer columns — reading
+  // them with `col['X']` (undefined -> falls through to '') keeps this
+  // working against an older sheet that doesn't have them yet.
   return raw.slice(1).filter(row => row[col['Name']||0]).map(row => ({
     name:          String(row[col['Name']]         ||''),
     role:          String(row[col['Role']]         ||''),
@@ -3867,7 +3870,14 @@ function parseStaffRows(raw) {
     email:         String(row[col['Email']]        ||''),
     assignedClass: String(row[col['Class']]        ||''),
     ratePerSession:parseFloat(row[col['Rate']]     ||0) || null,
-    attendance:    (() => { try { return JSON.parse(row[col['Attendance']]||'{}'); } catch(e){ return {}; } })()
+    attendance:    (() => { try { return JSON.parse(row[col['Attendance']]||'{}'); } catch(e){ return {}; } })(),
+    dbsDate:       String(row[col['DBS Date']]     ||''),
+    dbsStatus:     String(row[col['DBS Status']]   ||''),
+    address:       String(row[col['Address']]      ||''),
+    notes:         String(row[col['Notes']]        ||''),
+    gender:        String(row[col['Gender']]       ||''),
+    isHead:        String(row[col['IsHead']]||'').toLowerCase()==='true',
+    isVolunteer:   String(row[col['IsVolunteer']]||'').toLowerCase()==='true'
   }));
 }
 
@@ -3909,11 +3919,13 @@ function studentsToRows() {
 }
 
 function staffToRows() {
-  const headers = ['Name','Role','Phone','Email','Class','Rate','Attendance'];
+  const headers = ['Name','Role','Phone','Email','Class','Rate','Attendance','DBS Date','DBS Status','Address','Notes','Gender','IsHead','IsVolunteer'];
   const rows = staffDb.map(s => [
     s.name||'', s.role||'', s.phone||'', s.email||'',
     s.assignedClass||'', s.ratePerSession||'',
-    JSON.stringify(s.attendance||{})
+    JSON.stringify(s.attendance||{}),
+    s.dbsDate||'', s.dbsStatus||'', s.address||'', s.notes||'', s.gender||'',
+    s.isHead?'true':'false', s.isVolunteer?'true':'false'
   ]);
   return [headers, ...rows];
 }
