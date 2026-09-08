@@ -89,51 +89,92 @@ if (!$payload || empty($payload['firstName']) || empty($payload['surname']) || !
 list($code, $wsData) = graph_call($base . '/worksheets', $tokens['access_token']);
 $sheetName = null;
 $bestYear = 0;
+$g5SheetName = null;
 if (!empty($wsData['value'])) {
   foreach ($wsData['value'] as $ws) {
     if (preg_match('/student\s*database\s*(\d{2,4})\s*-\s*(\d{2,4})/i', $ws['name'], $m)) {
       $endYear = intval(strlen($m[2]) == 2 ? '20' . $m[2] : $m[2]);
       if ($endYear > $bestYear) { $bestYear = $endYear; $sheetName = $ws['name']; }
     }
+    if (preg_match('/^g5\s*class/i', $ws['name'])) {
+      $g5SheetName = $ws['name'];
+    }
   }
 }
 if (!$sheetName) fail(500, 'no Student Database tab found');
 
-// Read First Name / Surname columns to find the matching row
-$rangeUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='B2:C500')";
-list($code, $rdata2) = graph_call($rangeUrl, $tokens['access_token']);
-$rows = $rdata2['values'] ?? [];
-$targetRow = null;
-foreach ($rows as $i => $row) {
-  $fn = trim(strtolower($row[0] ?? ''));
-  $sn = trim(strtolower($row[1] ?? ''));
-  if ($fn === trim(strtolower($payload['firstName'])) && $sn === trim(strtolower($payload['surname']))) {
-    $targetRow = $i + 2; // range started at row 2
-    break;
+function find_row_by_name($base, $sheetName, $token, $firstName, $surname) {
+  $rangeUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='B2:C500')";
+  list($code, $rdata) = graph_call($rangeUrl, $token);
+  $rows = $rdata['values'] ?? [];
+  foreach ($rows as $i => $row) {
+    $fn = trim(strtolower($row[0] ?? ''));
+    $sn = trim(strtolower($row[1] ?? ''));
+    if ($fn === trim(strtolower($firstName)) && $sn === trim(strtolower($surname))) {
+      return $i + 2; // range started at row 2
+    }
+  }
+  return null;
+}
+
+// Search the main tab first, then the G5 tab (G5 students graduate out of the
+// main tab into their own sheet with a different, simpler column layout — no
+// AD-AO instalment slots — so they need separate handling below).
+$targetRow = find_row_by_name($base, $sheetName, $tokens['access_token'], $payload['firstName'], $payload['surname']);
+if ($targetRow) {
+  // Find the first free payment slot (AD/AH/AL date cells empty)
+  $slotCols = [['AD','AE','AF','AG'], ['AH','AI','AJ','AK'], ['AL','AM','AN','AO']];
+  $slot = null;
+  foreach ($slotCols as $cols) {
+    $checkUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='{$cols[0]}{$targetRow}')";
+    list($code, $cdata) = graph_call($checkUrl, $tokens['access_token']);
+    $val = $cdata['values'][0][0] ?? '';
+    if ($val === '' || $val === null) { $slot = $cols; break; }
+  }
+  if (!$slot) fail(409, 'all 3 payment slots are full for this student — needs manual review');
+
+  $writeRange = "{$slot[0]}{$targetRow}:{$slot[3]}{$targetRow}";
+  $writeUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='" . $writeRange . "')";
+  $values = [[
+    $payload['date'] ?? date('Y-m-d'),
+    floatval($payload['amount']),
+    $payload['method'] ?? '',
+    $payload['receipt'] ?? '',
+  ]];
+  list($code, $wdata, $wraw) = graph_call($writeUrl, $tokens['access_token'], 'PATCH', ['values' => $values]);
+  if ($code >= 300) fail(502, 'write failed', $wraw);
+
+  echo json_encode(['ok' => true, 'sheet' => $sheetName, 'row' => $targetRow, 'slot' => $slot[0]]);
+  exit;
+}
+
+if ($g5SheetName) {
+  $targetRow = find_row_by_name($base, $g5SheetName, $tokens['access_token'], $payload['firstName'], $payload['surname']);
+  if ($targetRow) {
+    // G5 tab has no instalment slots: I=Fees Paid, J=Fees Outstanding,
+    // K=Receipt book Page, L=Method of Payment, M=Date of payment, H=Fees Due.
+    $checkUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='H{$targetRow}:I{$targetRow}')";
+    list($code, $cdata) = graph_call($checkUrl, $tokens['access_token']);
+    $vals = $cdata['values'][0] ?? [0, 0];
+    $feesDue = floatval($vals[0] ?? 0);
+    $alreadyPaid = floatval($vals[1] ?? 0);
+    $newPaid = $alreadyPaid + floatval($payload['amount']);
+    $newOutstanding = $feesDue - $newPaid;
+
+    $writeUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='I{$targetRow}:M{$targetRow}')";
+    $values = [[
+      $newPaid,
+      $newOutstanding,
+      $payload['receipt'] ?? '',
+      $payload['method'] ?? '',
+      $payload['date'] ?? date('Y-m-d'),
+    ]];
+    list($code, $wdata, $wraw) = graph_call($writeUrl, $tokens['access_token'], 'PATCH', ['values' => $values]);
+    if ($code >= 300) fail(502, 'write failed', $wraw);
+
+    echo json_encode(['ok' => true, 'sheet' => $g5SheetName, 'row' => $targetRow, 'slot' => 'I']);
+    exit;
   }
 }
-if (!$targetRow) fail(404, 'student not found in Excel: ' . $payload['firstName'] . ' ' . $payload['surname']);
 
-// Find the first free payment slot (AD/AH/AL date cells empty)
-$slotCols = [['AD','AE','AF','AG'], ['AH','AI','AJ','AK'], ['AL','AM','AN','AO']];
-$slot = null;
-foreach ($slotCols as $cols) {
-  $checkUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='{$cols[0]}{$targetRow}')";
-  list($code, $cdata) = graph_call($checkUrl, $tokens['access_token']);
-  $val = $cdata['values'][0][0] ?? '';
-  if ($val === '' || $val === null) { $slot = $cols; break; }
-}
-if (!$slot) fail(409, 'all 3 payment slots are full for this student — needs manual review');
-
-$writeRange = "{$slot[0]}{$targetRow}:{$slot[3]}{$targetRow}";
-$writeUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='" . $writeRange . "')";
-$values = [[
-  $payload['date'] ?? date('Y-m-d'),
-  floatval($payload['amount']),
-  $payload['method'] ?? '',
-  $payload['receipt'] ?? '',
-]];
-list($code, $wdata, $wraw) = graph_call($writeUrl, $tokens['access_token'], 'PATCH', ['values' => $values]);
-if ($code >= 300) fail(502, 'write failed', $wraw);
-
-echo json_encode(['ok' => true, 'sheet' => $sheetName, 'row' => $targetRow, 'slot' => $slot[0]]);
+fail(404, 'student not found in Excel: ' . $payload['firstName'] . ' ' . $payload['surname']);
