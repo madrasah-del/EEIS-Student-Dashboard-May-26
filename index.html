@@ -7202,7 +7202,7 @@ parseStaffRows = function(raw) {
     address:        String(row[col['Address']]       ||''),
     assignedClass:  String(row[col['Class']]         ||''),
     ratePerSession: parseFloat(row[col['Rate']]||0) || null,
-    dbsDate:        String(row[col['DBSDate']]       ||''),
+    dbsDate:        (typeof _p10NormDate === 'function' ? _p10NormDate(row[col['DBSDate']]) : String(row[col['DBSDate']]||'')),
     dbsStatus:      String(row[col['DBSStatus']]     ||''),
     lastRateReview: String(row[col['LastRateReview']]||''),
     rateReviewNotes:String(row[col['RateReviewNotes']]||''),
