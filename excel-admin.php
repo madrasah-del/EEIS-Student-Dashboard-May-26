@@ -103,6 +103,15 @@ if ($action === 'resolve') {
   exit;
 }
 
+if ($action === 'get_file_meta') {
+  // Used by the App<->Excel sync to decide which side's edit is newer
+  // when the same field has changed on both sides since the last sync.
+  list($code, $data, $raw) = graph_call("https://graph.microsoft.com/v1.0/drives/$driveId/items/$itemId?\$select=lastModifiedDateTime", $tokens['access_token']);
+  if ($code >= 300) fail(502, 'could not read file metadata', $raw);
+  echo json_encode(['lastModifiedDateTime' => $data['lastModifiedDateTime'] ?? null]);
+  exit;
+}
+
 if ($action === 'list_worksheets') {
   list($code, $data, $raw) = graph_call($base . '/worksheets', $tokens['access_token']);
   echo $raw;

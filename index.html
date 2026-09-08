@@ -4333,11 +4333,17 @@ function saveEdit(){
   const fn=document.getElementById('e-fn').value.trim(), sn=document.getElementById('e-sn').value.trim();
   if(!fn||!sn){showToast('Name required','red');return;}
   const s=db[activeIdx];
+  // Snapshot the fields we sync to Excel BEFORE they're overwritten, so a
+  // conflict (Excel changed the same field more recently) can be detected.
+  const _p10SyncFields = ['DOB','Gender','Fees Due','Start Date','Mother Name','Mother Phone','Mother Email','Father Name','Father Phone','Father Email','Road','Town','County','Postcode','Allergies','Comments'];
+  const _p10Baseline = {};
+  _p10SyncFields.forEach(f => { _p10Baseline[f] = s[f]; });
   Object.assign(s,{ 'First Name':fn,'Surname':sn,'DOB':document.getElementById('e-dob').value,'Gender':document.getElementById('e-gender').value,'Class':document.getElementById('e-class').value,'Start Date':document.getElementById('e-start').value,'Fees Due':parseFloat(document.getElementById('e-due').value)||0,'Fee Notes':document.getElementById('e-feenote').value,'Mother Name':document.getElementById('e-mname').value,'Mother Phone':document.getElementById('e-mphone').value,'Mother Email':document.getElementById('e-memail').value,'Father Name':document.getElementById('e-fname2').value,'Father Phone':document.getElementById('e-fphone').value,'Father Email':document.getElementById('e-femail').value,'Road':document.getElementById('e-road').value,'Town':document.getElementById('e-town').value,'County':document.getElementById('e-county').value,'Postcode':document.getElementById('e-post').value,'Allergies':document.getElementById('e-allergy').value,'Comments':document.getElementById('e-comments').value });
   renderDashboard(); applyFilters();
   showToast('💾 Saving changes…');
   saveDb().then(() => {
     showToast('✅ Record updated & saved to Sheets','green');
+    if (typeof _pushFieldsToExcel === 'function') _pushFieldsToExcel(s, _p10Baseline, _p10SyncFields);
   }).catch(e => {
     showToast('❌ Save failed: '+e.message,'red');
   });
@@ -10746,10 +10752,12 @@ async function _p8HandleFile(ev) {
     const wbk = XLSX.read(buf, { cellDates: true });
     const mainName = _p8FindMainTab(wbk.SheetNames);
     const leftName = wbk.SheetNames.find(n => /^left/i.test(n.trim()));
+    const g5Name = wbk.SheetNames.find(n => /^g5\s*class/i.test(n.trim()));
     if (!mainName) throw new Error('Could not find a "Student Database" tab. Tabs found: ' + wbk.SheetNames.join(', '));
     mainRows = XLSX.utils.sheet_to_json(wbk.Sheets[mainName], { header: 1, raw: false, defval: '' });
     leftRows = leftName ? XLSX.utils.sheet_to_json(wbk.Sheets[leftName], { header: 1, raw: false, defval: '' }) : [];
-    _p8Diff = _p8BuildDiff(mainRows, leftRows);
+    const g5Rows = g5Name ? XLSX.utils.sheet_to_json(wbk.Sheets[g5Name], { header: 1, raw: false, defval: '' }) : null;
+    _p8Diff = _p8BuildDiff(mainRows, leftRows, g5Rows);
     _p8RenderPreview(out);
     // Same review-before-remove check as the automatic sync — this was
     // previously only wired into the OneDrive auto-sync path, so a manual
@@ -10784,37 +10792,48 @@ function _p8FindMainTab(sheetNames) {
 }
 window._p8FindMainTab = _p8FindMainTab;
 
-function _p8BuildDiff(mainRows, leftRows) {
-  const H = mainRows[0].map(h => String(h || '').trim());
-  // Exact match first; if a header has been edited/annotated in Excel
-  // (e.g. "First Name" became "First Name of this year and Intake"),
-  // fall back to "starts with" so a wording tweak doesn't break the
-  // whole sync — the canonical names below are specific enough that
-  // this doesn't risk matching the wrong column.
+// Shared field-name -> app-db-key map used for full-field comparison
+// against whichever Excel tab a student is found in (main tab or G5).
+// Every one of these is now compared for EXISTING students, not just
+// Fees Due/Class — previously a Mother/Father/address/allergy edit made
+// directly in Excel was silently ignored by the sync.
+const _P10_FIELD_MAP = [
+  { header: 'DOB', dbKey: 'DOB', label: 'DOB' },
+  { header: 'Gender', dbKey: 'Gender', label: 'Gender' },
+  { header: 'Start Date', dbKey: 'Start Date', label: 'Start Date' },
+  { header: 'Mother Name', dbKey: 'Mother Name', label: 'Mother Name' },
+  { header: 'Mother Phone', dbKey: 'Mother Phone', label: 'Mother Phone' },
+  { header: 'Mother Email', dbKey: 'Mother Email', label: 'Mother Email' },
+  { header: 'Father Name', dbKey: 'Father Name', label: 'Father Name' },
+  { header: 'Father Phone', dbKey: 'Father Phone', label: 'Father Phone' },
+  { header: 'Father Email', dbKey: 'Father Email', label: 'Father Email' },
+  { header: 'Road', dbKey: 'Road', label: 'Road' },
+  { header: 'Town', dbKey: 'Town', label: 'Town' },
+  { header: 'County', dbKey: 'County', label: 'County' },
+  { header: 'Postcode', dbKey: 'Postcode', label: 'Postcode' },
+  { header: 'Allergies', dbKey: 'Allergies', label: 'Allergies' },
+  { header: 'Comments', dbKey: 'Comments', label: 'Comments' }
+];
+
+// Processes one Excel tab's rows (main tab OR G5) against the app db,
+// pushing into a shared diff object. `sheetLabel` is just for logging.
+function _p10ProcessTabRows(rows, appByKey, diff, sheetLabel) {
+  if (!rows || !rows.length) return;
+  const H = rows[0].map(h => String(h || '').trim());
   const col = name => {
     const lc = name.toLowerCase();
     let i = H.findIndex(h => h.toLowerCase() === lc);
     if (i < 0) i = H.findIndex(h => h.toLowerCase().startsWith(lc));
     return i;
   };
-  const c = {
-    fn: col('First Name'), sn: col('Surname'), dob: col('DOB'), age: col('Age'),
-    gender: col('Gender'), cls: col('Class'), due: col('Fees Due'), paid: col('Fees Paid'),
-    receipt: col('Receipt book Page'), method: col('Method of Payment'), paydate: col('Date of payment'),
-    start: col('Start Date'), mname: col('Mother Name'), mphone: col('Mother Phone'), memail: col('Mother Email'),
-    fname: col('Father Name'), fphone: col('Father Phone'), femail: col('Father Email'),
-    road: col('Road'), town: col('Town'), county: col('County'), post: col('Postcode'),
-    allergy: col('Allergies'), comments: col('Comments')
-  };
-  if (c.fn < 0 || c.sn < 0 || c.paid < 0) throw new Error('The main tab is missing First Name / Surname / Fees Paid columns');
+  const c = { fn: col('First Name'), sn: col('Surname'), cls: col('Class'), due: col('Fees Due'), paid: col('Fees Paid'), age: col('Age') };
+  if (c.fn < 0 || c.sn < 0 || c.paid < 0) return; // not a recognisable student tab — skip quietly
+  const extra = {};
+  _P10_FIELD_MAP.forEach(f => { extra[f.dbKey] = col(f.header); });
+  const receiptCol = col('Receipt book Page'), methodCol = col('Method of Payment'), paydateCol = col('Date of payment');
 
-  const appByKey = {};
-  db.forEach((s, i) => { appByKey[_p8Key(s['First Name'], s['Surname'])] = i; });
-
-  const diff = { addPay: [], setField: [], newStudents: [], removals: [], flagged: [] };
-
-  for (let r = 1; r < mainRows.length; r++) {
-    const row = mainRows[r];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
     const fn = row[c.fn], sn = row[c.sn];
     if (!String(fn || '').trim() || !String(sn || '').trim()) continue;
     const cls = String(row[c.cls] || '').trim();
@@ -10830,30 +10849,46 @@ function _p8BuildDiff(mainRows, leftRows) {
       const delta = Math.round(xPaid - aPaid);
       if (delta > 0) {
         diff.addPay.push({ idx: appByKey[k], name: _p8Clean(fn) + ' ' + _p8Clean(sn), amount: delta,
-          method: g(c.method).slice(0, 40) || 'See Excel', paydate: g(c.paydate).slice(0, 40), receipt: g(c.receipt).slice(0, 20) });
+          method: g(methodCol).slice(0, 40) || 'See Excel', paydate: g(paydateCol).slice(0, 40), receipt: g(receiptCol).slice(0, 20) });
       } else if (delta < 0) {
         diff.flagged.push(_p8Clean(fn) + ' ' + _p8Clean(sn) + ': app shows £' + aPaid.toFixed(0) + ' paid but Excel shows £' + xPaid.toFixed(0) + ' — not changed, check manually');
       }
       const fieldChanges = [];
       if (xDue && _p8Num(s['Fees Due']) !== xDue) fieldChanges.push({ f: 'Fees Due', v: xDue, label: 'Fees Due £' + _p8Num(s['Fees Due']).toFixed(0) + ' → £' + xDue.toFixed(0) });
       if (cls && String(s['Class']).trim() !== cls) fieldChanges.push({ f: 'Class', v: cls, label: 'Class ' + s['Class'] + ' → ' + cls });
+      _P10_FIELD_MAP.forEach(f => {
+        const colIdx = extra[f.dbKey];
+        if (colIdx < 0) return;
+        const xVal = g(colIdx);
+        const aVal = String(s[f.dbKey] || '').trim();
+        if (xVal && xVal !== aVal) fieldChanges.push({ f: f.dbKey, v: xVal, label: f.label + ' "' + (aVal || '(blank)') + '" → "' + xVal + '"' });
+      });
       if (fieldChanges.length) diff.setField.push({ idx: appByKey[k], name: _p8Clean(fn) + ' ' + _p8Clean(sn), changes: fieldChanges });
     } else {
       const ns = {
-        'First Name': _p8Clean(fn), 'Surname': _p8Clean(sn), 'DOB': g(c.dob), 'Age': g(c.age),
-        'Gender': g(c.gender), 'Class': cls, 'Fees Due': xDue, 'Fees Paid': xPaid,
-        'Fees Outstanding': xPaid - xDue, 'Method of Payment': g(c.method), 'Date of payment': g(c.paydate),
-        'Start Date': g(c.start), 'Mother Name': g(c.mname), 'Mother Phone': g(c.mphone), 'Mother Email': g(c.memail),
-        'Father Name': g(c.fname), 'Father Phone': g(c.fphone), 'Father Email': g(c.femail),
-        'Road': g(c.road), 'Town': g(c.town), 'County': g(c.county), 'Postcode': g(c.post),
-        'Allergies': g(c.allergy), 'Comments': g(c.comments),
-        instalments: xPaid > 0 ? [{ date: _p8IsoDate(g(c.paydate)), amount: xPaid, method: g(c.method).slice(0, 40) || 'See Excel',
-          receipt: g(c.receipt).slice(0, 20), ref: 'Excel import', notes: 'Excel import — new student',
-          addedBy: 'Excel Import', addedAt: new Date().toISOString(), edited: false, editHistory: [] }] : []
+        'First Name': _p8Clean(fn), 'Surname': _p8Clean(sn), 'Age': g(c.age), 'Class': cls,
+        'Fees Due': xDue, 'Fees Paid': xPaid, 'Fees Outstanding': xPaid - xDue,
+        'Method of Payment': g(methodCol), 'Date of payment': g(paydateCol)
       };
+      _P10_FIELD_MAP.forEach(f => { const colIdx = extra[f.dbKey]; ns[f.dbKey] = colIdx >= 0 ? g(colIdx) : ''; });
+      ns.instalments = xPaid > 0 ? [{ date: _p8IsoDate(g(paydateCol)), amount: xPaid, method: g(methodCol).slice(0, 40) || 'See Excel',
+        receipt: g(receiptCol).slice(0, 20), ref: 'Excel import', notes: 'Excel import (' + sheetLabel + ') — new student',
+        addedBy: 'Excel Import', addedAt: new Date().toISOString(), edited: false, editHistory: [] }] : [];
       diff.newStudents.push(ns);
     }
   }
+}
+
+// g5Rows is optional — callers that haven't been updated to read the G5
+// tab yet still work exactly as before.
+function _p8BuildDiff(mainRows, leftRows, g5Rows) {
+  const appByKey = {};
+  db.forEach((s, i) => { appByKey[_p8Key(s['First Name'], s['Surname'])] = i; });
+
+  const diff = { addPay: [], setField: [], newStudents: [], removals: [], flagged: [] };
+
+  _p10ProcessTabRows(mainRows, appByKey, diff, 'main tab');
+  if (g5Rows) _p10ProcessTabRows(g5Rows, appByKey, diff, 'G5 tab');
 
   // Left tab — no header row; col 0 = First Name, col 1 = Surname
   for (const row of leftRows) {
@@ -10997,6 +11032,42 @@ async function _pushPaymentToExcel(student, payment) {
 }
 window._pushPaymentToExcel = _pushPaymentToExcel;
 
+// Phase 10 — pushes a general field edit (contact details, address,
+// allergies, DOB, etc.) to Excel, not just payments. "Newer wins": sends
+// the pre-edit baseline for each field so the server can detect if Excel
+// was changed more recently and skip overwriting that specific field.
+async function _pushFieldsToExcel(student, baselineValues, fieldNames) {
+  try {
+    const fields = {};
+    fieldNames.forEach(f => { fields[f] = { baseline: baselineValues[f], value: student[f] }; });
+    const resp = await fetch('/app-excel-field-write.php', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ firstName: student['First Name'], surname: student['Surname'], fields })
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      console.warn('[App->Excel] field push failed:', data.error, data.detail);
+      return;
+    }
+    const appliedCount = Object.keys(data.applied || {}).length;
+    const skippedCount = Object.keys(data.skipped || {}).length;
+    console.log('[App->Excel] fields pushed to', data.sheet, 'row', data.row, '— applied:', data.applied, 'skipped:', data.skipped);
+    if (skippedCount) {
+      showToast('⚠️ ' + skippedCount + ' field(s) not pushed to Excel — changed there more recently. Will pull in on next sync.', 'red');
+    }
+    if (appliedCount && typeof _p8LogSyncEvent === 'function') {
+      _p8LogSyncEvent({
+        addPay: [], newStudents: [], removals: [],
+        setField: [{ name: student['First Name'] + ' ' + student['Surname'], changes: Object.keys(data.applied).map(f => ({ f, v: data.applied[f], label: f + ' updated' })) }]
+      }, 'App→Excel');
+    }
+  } catch(e) {
+    console.warn('[App->Excel] field push error:', e.message);
+  }
+}
+window._pushFieldsToExcel = _pushFieldsToExcel;
+
 // Inject 📥 Excel button next to the Audit button (Editor+)
 function _p8InjectBtn() {
   if (document.getElementById('p8-xl-btn')) return;
@@ -11050,10 +11121,12 @@ async function _p9AutoSync(manual) {
     const wbk = XLSX.read(buf, { cellDates: true });
     const mainName = _p8FindMainTab(wbk.SheetNames);
     const leftName = wbk.SheetNames.find(n => /^left/i.test(n.trim()));
+    const g5Name = wbk.SheetNames.find(n => /^g5\s*class/i.test(n.trim()));
     if (!mainName) throw new Error('No "Student Database" tab found in the live Excel');
     const mainRows = XLSX.utils.sheet_to_json(wbk.Sheets[mainName], { header: 1, raw: false, defval: '' });
     const leftRows = leftName ? XLSX.utils.sheet_to_json(wbk.Sheets[leftName], { header: 1, raw: false, defval: '' }) : [];
-    const diff = _p8BuildDiff(mainRows, leftRows);
+    const g5Rows = g5Name ? XLSX.utils.sheet_to_json(wbk.Sheets[g5Name], { header: 1, raw: false, defval: '' }) : null;
+    const diff = _p8BuildDiff(mainRows, leftRows, g5Rows);
     const total = diff.addPay.length + diff.setField.length + diff.newStudents.length + diff.removals.length;
     // Sync genuinely completed — only now start the throttle window
     localStorage.setItem(_P9_LAST_KEY, String(Date.now()));
