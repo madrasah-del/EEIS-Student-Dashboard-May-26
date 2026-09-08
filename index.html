@@ -5128,9 +5128,9 @@ function renderClassSummaryCards() {
     const over = count > CLASS_CAPACITY;
     const capClass = over ? 'full' : pct >= 80 ? 'warn' : 'safe';
 
-    // Find assigned staff
-    const teacher = staffDb.find(s => s.assignedClass === cls && s.role === 'Teacher');
-    const volunteer = staffDb.find(s => s.assignedClass === cls && s.role === 'Volunteer');
+    // Find assigned staff (exclude former staff who are no longer active)
+    const teacher = staffDb.find(s => s.assignedClass === cls && s.role === 'Teacher' && (s.status||'Active') !== 'Left');
+    const volunteer = staffDb.find(s => s.assignedClass === cls && s.role === 'Volunteer' && (s.status||'Active') !== 'Left');
 
     const staffHtml = (teacher || volunteer) ? `
       <div class="cs-staff">
@@ -6944,7 +6944,7 @@ function getEmailsForIndices(indices) {
   return [...indices].map(i => staffDb[i]?.email).filter(e => e && e.includes('@'));
 }
 function getEmailsForGender(gender) {
-  return staffDb.filter((s,i) => s.gender === gender).map(s => s.email).filter(e => e && e.includes('@'));
+  return staffDb.filter(s => s.gender === gender && (s.status||'Active') !== 'Left').map(s => s.email).filter(e => e && e.includes('@'));
 }
 function openEmailDraft(emails, subject) {
   if (!emails.length) { showToast('No email addresses found for selection', 'red'); return; }
@@ -6965,7 +6965,7 @@ function emailFemaleStaff() {
   openEmailDraft(getEmailsForGender('Female'), 'EEIS Sisters — Important Notice');
 }
 function emailAllStaff() {
-  const all = staffDb.map(s => s.email).filter(e => e && e.includes('@'));
+  const all = staffDb.filter(s => (s.status||'Active') !== 'Left').map(s => s.email).filter(e => e && e.includes('@'));
   openEmailDraft(all, 'EEIS All Staff — Important Notice');
 }
 
@@ -6975,7 +6975,8 @@ renderStaffGrid = function() {
   if (!grid) return;
 
   checkDbsAlerts();
-  if (!staffDb.length) {
+  const activeStaff = staffDb.filter(s => (s.status||'Active') !== 'Left');
+  if (!activeStaff.length) {
     grid.innerHTML = '<div style="text-align:center;padding:32px;color:var(--ink3);grid-column:1/-1;">No staff added yet.</div>';
     renderPayrollBanner();
     return;
@@ -6985,11 +6986,11 @@ renderStaffGrid = function() {
   const year  = now.getFullYear(), month = now.getMonth();
   const sats  = getSaturdaysInMonth(year, month);
 
-  // Separate by type for section headings
-  const head      = staffDb.filter(s => s.isHead);
-  const teachers  = staffDb.filter(s => !s.isVolunteer && !s.isHead);
-  const volunteers = staffDb.filter(s => s.isVolunteer && s.assignedClass !== 'Office');
-  const office    = staffDb.filter(s => s.isVolunteer && s.assignedClass === 'Office');
+  // Separate by type for section headings (former staff excluded from the grid entirely)
+  const head      = activeStaff.filter(s => s.isHead);
+  const teachers  = activeStaff.filter(s => !s.isVolunteer && !s.isHead);
+  const volunteers = activeStaff.filter(s => s.isVolunteer && s.assignedClass !== 'Office');
+  const office    = activeStaff.filter(s => s.isVolunteer && s.assignedClass === 'Office');
 
   function buildCard(s, i) {
     const initials  = s.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
@@ -7059,18 +7060,21 @@ renderStaffGrid = function() {
     </div>`;
   }
 
-  function section(title, members, startIdx) {
+  function section(title, members) {
     if (!members.length) return '';
     return `<div style="grid-column:1/-1" class="staff-section-title">${title}<span style="font-size:14px;color:var(--ink2);font-weight:600">${members.length} member${members.length>1?'s':''}</span></div>` +
-      members.map((s, i) => buildCard(s, startIdx + i)).join('');
+      members.map(s => buildCard(s, staffDb.indexOf(s))).join('');
   }
 
-  // Rebuild with section headers inside grid
+  // Rebuild with section headers inside grid — each card uses the staff
+  // member's real staffDb index (not a sequential position) so edit/
+  // attendance/select actions still target the right record now that
+  // former (Left) staff are filtered out of this list entirely.
   grid.innerHTML = `
-    ${section('👑 Leadership', head, 0)}
-    ${section('👨‍🏫 Teachers', teachers, head.length)}
-    ${section('🤝 Volunteers', volunteers, head.length + teachers.length)}
-    ${section('🏢 Office', office, head.length + teachers.length + volunteers.length)}
+    ${section('👑 Leadership', head)}
+    ${section('👨‍🏫 Teachers', teachers)}
+    ${section('🤝 Volunteers', volunteers)}
+    ${section('🏢 Office', office)}
   `;
 
   renderPayrollBanner();
