@@ -8604,7 +8604,8 @@ function _p6_compactifyStaffCards() {
   // Get all existing staff-card elements and replace their inner content
   const cards = grid.querySelectorAll('.staff-card');
   cards.forEach((card, i) => {
-    const idx = parseInt(card.id?.replace('staff-card-', '')) || i;
+    const parsed = parseInt(card.id?.replace('staff-card-', ''));
+    const idx = Number.isNaN(parsed) ? i : parsed;
     const s = sDb[idx];
     if (!s) return;
     _p6_renderCompactCard(card, s, idx);
@@ -8614,16 +8615,7 @@ function _p6_compactifyStaffCards() {
 function _p6_renderCompactCard(card, s, idx) {
   const initials = s.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
   const roleClass = s.isVolunteer ? 'volunteer' : 'teacher';
-  const dbsBadge = getDbsBadge(s);
-  // Extract just the badge text/class
-  const dbsSimple = s.dbsExpiry ? (() => {
-    const exp = new Date(s.dbsExpiry);
-    const now = new Date();
-    const days = Math.ceil((exp - now) / 86400000);
-    if (days < 0) return '<span style="color:#ef4444;font-size:11px;">✗ DBS exp</span>';
-    if (days < 90) return '<span style="color:#f59e0b;font-size:11px;">⚠️ DBS ' + Math.ceil(days/7) + 'w</span>';
-    return '<span style="color:var(--green);font-size:11px;">✓ DBS</span>';
-  })() : '';
+  const dbsSimple = (s.dbsDate || s.dbsStatus) ? `<span style="font-size:11px;">${getDbsBadge(s)}</span>` : '';
 
   const classChip = s.assignedClass ? `<span class="chip chip-${s.assignedClass}" style="font-size:10px;padding:1px 6px;">${s.assignedClass}</span>` : '';
   const genderIcon = s.gender === 'Female' ? '🧕' : '🧑';
