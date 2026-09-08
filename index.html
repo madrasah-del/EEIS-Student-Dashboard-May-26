@@ -10835,10 +10835,17 @@ function _p10NormDate(v) {
   }
   const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return iso[1] + '-' + iso[2] + '-' + iso[3];
-  const us = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); // M/D/YY or M/D/YYYY
-  if (us) {
-    let [, m, d, y] = us;
+  const slash = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); // ambiguous: could be M/D/Y or D/M/Y depending on the cell's own format
+  if (slash) {
+    let [, p1, p2, y] = slash;
     if (y.length === 2) y = (parseInt(y, 10) < 50 ? '20' : '19') + y;
+    // Whichever part is >12 must be the day — that disambiguates most
+    // cases; different tabs in this workbook use different date formats
+    // per-cell, so this can't be assumed fixed for the whole file.
+    let m, d;
+    if (parseInt(p1, 10) > 12) { d = p1; m = p2; }
+    else if (parseInt(p2, 10) > 12) { m = p1; d = p2; }
+    else { m = p1; d = p2; } // ambiguous — default matches this workbook's majority format (M/D/Y)
     return y + '-' + m.padStart(2, '0') + '-' + d.padStart(2, '0');
   }
   const dmy = v.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/); // DD-MM-YYYY
@@ -10895,8 +10902,10 @@ function _p10ProcessTabRows(rows, appByKey, diff, sheetLabel) {
         const aVal = String(s[f.dbKey] || '').trim();
         if (!xVal) return;
         const isDate = _P10_DATE_FIELDS[f.dbKey];
-        const same = isDate ? (_p10NormDate(xVal) === _p10NormDate(aVal)) : (xVal === aVal);
-        if (!same) fieldChanges.push({ f: f.dbKey, v: isDate ? _p10NormDate(xVal) : xVal, label: f.label + ' "' + (aVal || '(blank)') + '" → "' + xVal + '"' });
+        // \r\n vs \n is just an export artifact, not a real edit
+        const norm = t => String(t || '').replace(/\r\n/g, '\n').trim();
+        const same = isDate ? (_p10NormDate(xVal) === _p10NormDate(aVal)) : (norm(xVal) === norm(aVal));
+        if (!same) fieldChanges.push({ f: f.dbKey, v: isDate ? _p10NormDate(xVal) : norm(xVal), label: f.label + ' "' + (aVal || '(blank)') + '" → "' + xVal + '"' });
       });
       if (fieldChanges.length) diff.setField.push({ idx: appByKey[k], name: _p8Clean(fn) + ' ' + _p8Clean(sn), changes: fieldChanges });
     } else {
