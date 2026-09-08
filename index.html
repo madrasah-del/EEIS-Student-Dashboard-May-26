@@ -10822,6 +10822,17 @@ const _P10_FIELD_MAP = [
 function _p10NormDate(v) {
   v = String(v || '').trim();
   if (!v) return '';
+  // A full ISO timestamp (e.g. "2019-09-06T23:00:00.000Z") means a plain
+  // date was serialised via new Date(...).toISOString() in a UTC+ timezone
+  // (BST) — the UTC date is a day behind the calendar date that was
+  // actually entered. Read it back with LOCAL getters (same zone that
+  // created it) to recover the intended date, rather than the date
+  // portion of the string itself.
+  const isoWithTime = v.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+  if (isoWithTime) {
+    const d = new Date(v);
+    if (!isNaN(d)) return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
   const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return iso[1] + '-' + iso[2] + '-' + iso[3];
   const us = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); // M/D/YY or M/D/YYYY
