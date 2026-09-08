@@ -10815,6 +10815,27 @@ const _P10_FIELD_MAP = [
   { header: 'Comments', dbKey: 'Comments', label: 'Comments' }
 ];
 
+// Dates arrive from Excel/XLSX in all sorts of raw string shapes
+// (M/D/YY, "M/D/YY H:MM", etc.) while the app stores ISO. Comparing those
+// as plain strings makes almost every DOB/Start Date look "changed" when
+// it isn't — normalise both sides to YYYY-MM-DD before comparing.
+function _p10NormDate(v) {
+  v = String(v || '').trim();
+  if (!v) return '';
+  const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return iso[1] + '-' + iso[2] + '-' + iso[3];
+  const us = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); // M/D/YY or M/D/YYYY
+  if (us) {
+    let [, m, d, y] = us;
+    if (y.length === 2) y = (parseInt(y, 10) < 50 ? '20' : '19') + y;
+    return y + '-' + m.padStart(2, '0') + '-' + d.padStart(2, '0');
+  }
+  const dmy = v.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/); // DD-MM-YYYY
+  if (dmy) { const [, d, m, y] = dmy; return y + '-' + m.padStart(2, '0') + '-' + d.padStart(2, '0'); }
+  return v; // unrecognised shape — fall back to raw compare rather than silently ignoring it
+}
+const _P10_DATE_FIELDS = { DOB: true, 'Start Date': true };
+
 // Processes one Excel tab's rows (main tab OR G5) against the app db,
 // pushing into a shared diff object. `sheetLabel` is just for logging.
 function _p10ProcessTabRows(rows, appByKey, diff, sheetLabel) {
@@ -10861,7 +10882,10 @@ function _p10ProcessTabRows(rows, appByKey, diff, sheetLabel) {
         if (colIdx < 0) return;
         const xVal = g(colIdx);
         const aVal = String(s[f.dbKey] || '').trim();
-        if (xVal && xVal !== aVal) fieldChanges.push({ f: f.dbKey, v: xVal, label: f.label + ' "' + (aVal || '(blank)') + '" → "' + xVal + '"' });
+        if (!xVal) return;
+        const isDate = _P10_DATE_FIELDS[f.dbKey];
+        const same = isDate ? (_p10NormDate(xVal) === _p10NormDate(aVal)) : (xVal === aVal);
+        if (!same) fieldChanges.push({ f: f.dbKey, v: isDate ? _p10NormDate(xVal) : xVal, label: f.label + ' "' + (aVal || '(blank)') + '" → "' + xVal + '"' });
       });
       if (fieldChanges.length) diff.setField.push({ idx: appByKey[k], name: _p8Clean(fn) + ' ' + _p8Clean(sn), changes: fieldChanges });
     } else {
