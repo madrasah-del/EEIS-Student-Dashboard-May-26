@@ -138,6 +138,23 @@ if ($action === 'ensure_sheet') {
   exit;
 }
 
+if ($action === 'set_data_validation') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || empty($payload['range']) || empty($payload['formula1'])) {
+    fail(400, 'body must be {sheet, range, formula1}');
+  }
+  $url = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')/range(address='" . $payload['range'] . "')/dataValidation";
+  $body = [
+    'rule' => [ 'list' => [ 'source' => $payload['formula1'], 'inCellDropDown' => true ] ],
+    'ignoreBlanks' => true,
+  ];
+  list($code, $data, $raw) = graph_call($url, $tokens['access_token'], 'PATCH', $body);
+  if ($code >= 300) fail(502, 'set_data_validation failed', $raw);
+  echo $raw;
+  exit;
+}
+
 if ($action === 'write_range') {
   $raw_body = file_get_contents('php://input');
   $payload = json_decode($raw_body, true);
