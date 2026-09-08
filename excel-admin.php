@@ -176,11 +176,12 @@ if ($action === 'apply_style') {
     list($code, $data, $raw) = graph_call($rangeUrl . '/format/fill', $tokens['access_token'], 'PATCH', ['color' => $payload['fill_color']]);
     $results['fill_color'] = ($code < 300) ? 'ok' : $raw;
   }
-  if (isset($payload['font_name']) || isset($payload['font_size']) || isset($payload['font_color'])) {
+  if (isset($payload['font_name']) || isset($payload['font_size']) || isset($payload['font_color']) || isset($payload['font_bold'])) {
     $fontBody = array();
     if (isset($payload['font_name'])) $fontBody['name'] = $payload['font_name'];
     if (isset($payload['font_size'])) $fontBody['size'] = $payload['font_size'];
     if (isset($payload['font_color'])) $fontBody['color'] = $payload['font_color'];
+    if (isset($payload['font_bold'])) $fontBody['bold'] = $payload['font_bold'];
     list($code, $data, $raw) = graph_call($rangeUrl . '/format/font', $tokens['access_token'], 'PATCH', $fontBody);
     $results['font'] = ($code < 300) ? 'ok' : $raw;
   }
