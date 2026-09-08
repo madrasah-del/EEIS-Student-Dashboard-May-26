@@ -138,6 +138,19 @@ if ($action === 'ensure_sheet') {
   exit;
 }
 
+if ($action === 'set_visibility') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['sheet']) || empty($payload['visibility'])) {
+    fail(400, 'body must be {sheet, visibility}'); // Visible | Hidden | VeryHidden
+  }
+  $url = $base . "/worksheets('" . rawurlencode($payload['sheet']) . "')";
+  list($code, $data, $raw) = graph_call($url, $tokens['access_token'], 'PATCH', ['visibility' => $payload['visibility']]);
+  if ($code >= 300) fail(502, 'set_visibility failed', $raw);
+  echo $raw;
+  exit;
+}
+
 if ($action === 'set_data_validation') {
   $raw_body = file_get_contents('php://input');
   $payload = json_decode($raw_body, true);

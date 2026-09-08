@@ -429,6 +429,7 @@ td{padding:10px 13px;vertical-align:middle;}
 .chip-G2{background:#fdf2f8;color:#a21caf;}
 .chip-G3{background:#ede9fe;color:#5b21b6;}
 .chip-G4{background:#e0e7ff;color:#3730a3;}
+.chip-G5{background:#fae8ff;color:#86198f;}
 .chip-ok{background:var(--green-lt);color:var(--green);}
 .chip-owe{background:var(--red-lt);color:var(--red);}
 .chip-over{background:var(--blue-lt);color:var(--blue);}
@@ -4112,8 +4113,8 @@ function renderDashboard() {
   document.getElementById('d-owed').textContent='£'+Math.round(owedT).toLocaleString();
   document.getElementById('d-owed-count').textContent=owedC+' student'+(owedC!==1?'s':'')+' owing';
 
-  const classes=['B1','B1B','B2','B3','B4','G1','G2','G3','G4'];
-  const cols={B1:'#1d4ed8',B1B:'#3b82f6',B2:'#0369a1',B3:'#166534',B4:'#065f46',G1:'#9d174d',G2:'#a21caf',G3:'#5b21b6',G4:'#3730a3'};
+  const classes=['B1','B1B','B2','B3','B4','G1','G2','G3','G4','G5'];
+  const cols={B1:'#1d4ed8',B1B:'#3b82f6',B2:'#0369a1',B3:'#166534',B4:'#065f46',G1:'#9d174d',G2:'#a21caf',G3:'#5b21b6',G4:'#3730a3',G5:'#86198f'};
   const maxC=Math.max(1,...classes.map(c=>db.filter(s=>s['Class']===c).length));
   document.getElementById('class-grid').innerHTML=classes.map(cls=>{
     const n=db.filter(s=>s['Class']===cls).length;
@@ -5097,11 +5098,11 @@ const CLASS_CAPACITY = 15;
 const CLASS_COLORS = {
   B1:'#1d4ed8', B1B:'#3b82f6', B2:'#0369a1',
   B3:'#166534', B4:'#065f46',
-  G1:'#9d174d', G2:'#a21caf', G3:'#5b21b6', G4:'#3730a3'
+  G1:'#9d174d', G2:'#a21caf', G3:'#5b21b6', G4:'#3730a3', G5:'#86198f'
 };
 
 function renderClassSummaryCards() {
-  const classes = ['B1','B1B','B2','B3','B4','G1','G2','G3','G4'];
+  const classes = ['B1','B1B','B2','B3','B4','G1','G2','G3','G4','G5'];
   const grid = document.getElementById('class-grid');
 
   grid.innerHTML = classes.map(cls => {
