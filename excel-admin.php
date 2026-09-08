@@ -326,6 +326,16 @@ if ($action === 'list_tables') {
   exit;
 }
 
+if ($action === 'resize_table') {
+  $raw_body = file_get_contents('php://input');
+  $payload = json_decode($raw_body, true);
+  if (!$payload || empty($payload['id']) || empty($payload['range'])) fail(400, 'body must be {id, range}');
+  list($code, $data, $raw) = graph_call($base . "/tables('" . $payload['id'] . "')/resize", $tokens['access_token'], 'POST', ['newRange' => $payload['range']]);
+  if ($code >= 300) fail(502, 'resize failed', $raw);
+  echo $raw;
+  exit;
+}
+
 if ($action === 'delete_table') {
   $raw_body = file_get_contents('php://input');
   $payload = json_decode($raw_body, true);
