@@ -81,8 +81,9 @@ $itemId = $rdata['id'];
 $base = "https://graph.microsoft.com/v1.0/drives/$driveId/items/$itemId/workbook";
 
 $payload = json_decode(file_get_contents('php://input'), true);
-if (!$payload || empty($payload['firstName']) || empty($payload['surname']) || !isset($payload['amount'])) {
-  fail(400, 'body must be {firstName, surname, date, amount, method, receipt}');
+$isReset = !empty($payload['reset']);
+if (!$payload || empty($payload['firstName']) || empty($payload['surname']) || (!$isReset && !isset($payload['amount']))) {
+  fail(400, 'body must be {firstName, surname, date, amount, method, receipt} or {firstName, surname, reset: true}');
 }
 
 // Find the current live "Student Database X-Y" tab (highest end year)
@@ -121,6 +122,14 @@ function find_row_by_name($base, $sheetName, $token, $firstName, $surname) {
 // main tab into their own sheet with a different, simpler column layout — no
 // AD-AO instalment slots — so they need separate handling below).
 $targetRow = find_row_by_name($base, $sheetName, $tokens['access_token'], $payload['firstName'], $payload['surname']);
+if ($targetRow && $isReset) {
+  // Clear all 3 instalment slots — used to undo test/practice payments,
+  // never called from the normal payment-recording flow.
+  $writeUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='AD{$targetRow}:AO{$targetRow}')";
+  graph_call($writeUrl, $tokens['access_token'], 'PATCH', ['values' => [array_fill(0, 12, '')]]);
+  echo json_encode(['ok' => true, 'sheet' => $sheetName, 'row' => $targetRow, 'reset' => true]);
+  exit;
+}
 if ($targetRow) {
   // Find the first free payment slot (AD/AH/AL date cells empty)
   $slotCols = [['AD','AE','AF','AG'], ['AH','AI','AJ','AK'], ['AL','AM','AN','AO']];
@@ -150,6 +159,22 @@ if ($targetRow) {
 
 if ($g5SheetName) {
   $targetRow = find_row_by_name($base, $g5SheetName, $tokens['access_token'], $payload['firstName'], $payload['surname']);
+  if ($targetRow && $isReset) {
+    // Clear Paid/Outstanding back to 0/full-fee-due, and all 3 payment
+    // slots — used to undo test/practice payments, never called from
+    // the normal payment-recording flow.
+    $dueUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='H{$targetRow}')";
+    list(, $ddata) = graph_call($dueUrl, $tokens['access_token']);
+    $feesDue = floatval($ddata['values'][0][0] ?? 0);
+    $totalsUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='I{$targetRow}:J{$targetRow}')";
+    graph_call($totalsUrl, $tokens['access_token'], 'PATCH', ['values' => [[0, $feesDue]]]);
+    $slot1Url = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='K{$targetRow}:M{$targetRow}')";
+    graph_call($slot1Url, $tokens['access_token'], 'PATCH', ['values' => [['', '', '']]]);
+    $slot23Url = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='AD{$targetRow}:AI{$targetRow}')";
+    graph_call($slot23Url, $tokens['access_token'], 'PATCH', ['values' => [array_fill(0, 6, '')]]);
+    echo json_encode(['ok' => true, 'sheet' => $g5SheetName, 'row' => $targetRow, 'reset' => true]);
+    exit;
+  }
   if ($targetRow) {
     // G5 tab: I=Fees Paid (running total), J=Fees Outstanding, H=Fees Due.
     // Per-payment receipt/method/date used to live only in K/L/M, a single
