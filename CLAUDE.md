@@ -114,6 +114,20 @@ GITHUB_REPO      = 'https://github.com/madrasah-del/EEIS-Student-Dashboard-May-2
    reason. If a `typeof X === 'function'` guard's fallback path is what
    actually runs in production and nobody notices, this is why — check
    `window.X` directly, don't trust that "no error" means "it ran."
+0.5. **Staff data has no periodic refresh — student data does.** Student
+   data auto-refreshes via `loadFromSheets()` when the local cache is
+   empty or over an hour old; staff data had no equivalent, so a browser
+   with any cached staffDb (however old) never noticed server-side
+   changes on its own. Worse, the Staff panel's "☁ Sync" button used to
+   be push-only (`pushStaffToSheets()`), so a stale local copy clicking
+   "Sync" would silently overwrite a correct server-side change — this
+   happened for real (a rate update got reverted this way). Fixed:
+   `enterApp()` now unconditionally pulls fresh staff data via
+   `refreshStaffFromSheets()` on every login, and the Sync button pulls
+   instead of pushing (legitimate edits already push immediately from
+   `saveStaffMember()`, so a dedicated sync action only ever needs to
+   pull). If a "sync" button's actual direction isn't obvious from its
+   label, check before assuming — "sync" is not self-documenting.
 1. Never `replaceWith()` an element containing IDs other code
    `getElementById()`s later — hide it and insert a sibling instead.
 2. `||` vs `??` for a value that can legitimately be `0` — `X || fallback`

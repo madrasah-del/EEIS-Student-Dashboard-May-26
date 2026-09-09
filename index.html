@@ -2365,7 +2365,7 @@ input, select, textarea {
     <div class="payroll-divider"></div>
     <div class="payroll-stat"><label>Month Payroll</label><span id="pr-payroll">£0</span></div>
     <div style="margin-left:auto;display:flex;gap:8px;">
-      <button class="btn btn-ghost btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);" onclick="pushStaffToSheets()" title="Sync staff to Google Sheets">☁ Sync</button>
+      <button class="btn btn-ghost btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);" onclick="refreshStaffFromSheets(true)" title="Pull latest staff data from Google Sheets">☁ Sync</button>
       <button class="btn btn-ghost btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);" onclick="openAddStaff()">+ Add Staff</button>
     </div>
   </div>
@@ -4093,6 +4093,34 @@ async function pushToSheets() {
 async function pushStaffToSheets() {
   if (!cfg.scriptUrl || !canEdit()) return;
   try { await sheetsPost('staff', staffToRows()); } catch(e) { console.warn('Staff sync failed:', e); }
+}
+
+// Pull fresh staff data from Sheets. This is deliberately a PULL, not a
+// push: a device whose staffDb was loaded from localStorage more than a
+// few minutes ago has no way to know if someone else (another device, or
+// a direct Sheets/Excel edit) changed staff data since — pushing that
+// possibly-stale copy would silently overwrite the newer server data.
+// Real edits made through the Add/Edit Staff form already push
+// immediately in saveStaffMember(), so a dedicated "Sync" action only
+// ever needs to pull.
+async function refreshStaffFromSheets(showFeedback) {
+  if (!cfg.scriptUrl) return false;
+  try {
+    const raw = await sheetsGet('staff');
+    const fresh = parseStaffRows(raw);
+    if (fresh.length) {
+      staffDb = fresh;
+      saveStaffDb();
+      saveStaffCache();
+      if (typeof renderStaffGrid === 'function') renderStaffGrid();
+      if (showFeedback) showToast('✅ Staff data refreshed', 'green');
+      return true;
+    }
+  } catch (e) {
+    console.warn('Staff refresh failed:', e);
+    if (showFeedback) showToast('❌ Could not refresh staff data', 'red');
+  }
+  return false;
 }
 
 // ── PUSH users tab ──
@@ -7228,18 +7256,29 @@ parseStaffRows = function(raw) {
 };
 
 // ── Google Sheets column totals summary ──
-// Automatically push staff on first load if Google Sheets connected
+// Always pull fresh staff data on every login, regardless of local cache
+// age — unlike student data (which tolerates up to an hour of staleness
+// via loadFromSheets()'s cache-age gate), staff data has no equivalent
+// periodic refresh at all otherwise. Without this, a browser with a
+// cached-but-outdated staffDb never notices a change made elsewhere
+// (another device, or a direct edit) until someone manually clicks
+// "Sync" — and since that button pushes rather than pulls, it can
+// actually overwrite the correct server data with the stale local copy
+// (this happened for real: a rate change was reverted this way).
 const _s7_origEnterApp = enterApp;
 enterApp = function() {
   _s7_origEnterApp();
-  // Auto-push staff seed to Sheets if connected and sheets is empty
   if (cfg.scriptUrl) {
-    sheetsGet('staff').then(raw => {
-      if (!raw || raw.length < 2) {
-        // Sheets staff tab is empty — push our seed data
-        pushStaffToSheets().then(() => showToast('✅ Staff data synced to Google Sheets','green'));
+    refreshStaffFromSheets(false).then(pulled => {
+      if (!pulled) {
+        // Sheets staff tab is genuinely empty (new deployment) — seed it
+        sheetsGet('staff').then(raw => {
+          if (!raw || raw.length < 2) {
+            pushStaffToSheets().then(() => showToast('✅ Staff data synced to Google Sheets','green'));
+          }
+        }).catch(()=>{});
       }
-    }).catch(()=>{});
+    });
   }
 };
 
