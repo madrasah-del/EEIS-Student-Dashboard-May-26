@@ -12056,5 +12056,156 @@ function _p16ShowReview(vanished) {
 console.log('[Phase 16] Vanished-student detection (review-before-remove) active');
 })();
 </script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// PHASE 17: ANNUAL FEE REBALANCE (New → Existing student rate)
+// ══════════════════════════════════════════════════════════════
+// Budget rule (confirmed from the Excel "Budget" tab, Sept 2026): a
+// student pays the "new student" rate (£280) only in their FIRST year;
+// from their second year onward they're an "existing student" (£260).
+// G5 and "Offered" (not-yet-enrolled) are excluded — G5 is a flat £175
+// regardless of tenure, and "Offered" students haven't started yet.
+//
+// Every year, students who joined last year and are still sitting on
+// the £280 new-student rate need moving down to £260. This runs once
+// per year, triggered in the window academic staff actually do this
+// (last week of August through mid-October, to allow for staff opening
+// the app later than the exact date), and always shows a review list
+// before touching anything — never applies silently.
+
+const _P17_KEY = 'eeis_fee_rebalance_v1';
+
+function _p17InWindow() {
+  const now = new Date();
+  const y = now.getFullYear();
+  // Last week of August -> mid-October, for the academic year starting
+  // 1 Sept of this same calendar year.
+  const start = new Date(y, 7, 24); // 24 Aug
+  const end = new Date(y, 9, 15);   // 15 Oct
+  return now >= start && now <= end;
+}
+
+function _p17AlreadyHandledThisYear() {
+  const now = new Date();
+  const targetYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  try {
+    const rec = JSON.parse(localStorage.getItem(_P17_KEY) || 'null');
+    return rec && rec.year === targetYear;
+  } catch (e) { return false; }
+}
+
+function _p17MarkHandled() {
+  const now = new Date();
+  const targetYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  localStorage.setItem(_P17_KEY, JSON.stringify({ year: targetYear, at: now.toISOString() }));
+}
+
+function _p17FindCandidates() {
+  const now = new Date();
+  const cutoffYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  const cutoff = new Date(cutoffYear, 8, 1); // 1 Sept of the incoming academic year
+  return db.filter(s => {
+    if (s['Class'] === 'G5' || s['Class'] === 'Offered') return false;
+    if (parseFloat(s['Fees Due']) !== 280) return false;
+    const sd = s['Start Date'];
+    if (!sd) return false;
+    const start = new Date(sd);
+    if (isNaN(start)) return false;
+    return start < cutoff; // started before this year -> no longer "new"
+  });
+}
+
+function _p17CheckFeeRebalance() {
+  if (!_p17InWindow() || _p17AlreadyHandledThisYear()) return;
+  if (!db || !db.length) return;
+  const candidates = _p17FindCandidates();
+  if (!candidates.length) { _p17MarkHandled(); return; }
+  _p17ShowReview(candidates);
+}
+
+function _p17Key(s) { return (s['First Name']+'|'+s['Surname']).toLowerCase().trim(); }
+
+window._p17Remove = function(key) {
+  const row = document.getElementById('p17-row-' + key.replace(/[^a-z0-9]/g,'_'));
+  if (row) row.remove();
+  window.__p17Candidates = (window.__p17Candidates||[]).filter(s => _p17Key(s) !== key);
+  const remaining = document.querySelectorAll('#p17-review .p17-row').length;
+  const countEl = document.getElementById('p17-count');
+  if (countEl) countEl.textContent = remaining;
+  if (!remaining) { const ov = document.getElementById('p17-review'); if (ov) ov.remove(); _p17MarkHandled(); }
+};
+
+window._p17ApplyAll = async function() {
+  const list = window.__p17Candidates || [];
+  if (!list.length) return;
+  const btn = document.getElementById('p17-apply-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Applying…'; }
+
+  for (const s of list) {
+    s['Fees Due'] = 260;
+    s['Comments'] = '2026-27 fee schedule confirmed ' + new Date().toISOString().slice(0,10) + ': existing-student rate (£260) applied, was carried over as new-student rate (£280) from last year.';
+  }
+  try {
+    await saveDb();
+    showToast('💾 Saved — syncing to Excel…');
+    for (const s of list) {
+      try { await _pushFieldsToExcel(s, { 'Fees Due': 280 }, ['Fees Due']); } catch (e) { console.warn('Fee rebalance Excel push failed for', s['First Name'], s['Surname'], e); }
+    }
+    showToast('✅ ' + list.length + ' student' + (list.length>1?'s':'') + ' moved to existing-student rate', 'green');
+  } catch (e) {
+    showToast('❌ Save failed: ' + e.message, 'red');
+  }
+  renderDashboard(); renderTable();
+  _p17MarkHandled();
+  const ov = document.getElementById('p17-review'); if (ov) ov.remove();
+};
+
+function _p17ShowReview(candidates) {
+  window.__p17Candidates = candidates.slice();
+  let ov = document.getElementById('p17-review');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'p17-review';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9900;display:flex;align-items:flex-start;justify-content:center;padding:30px 12px;overflow-y:auto;';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const rows = candidates.map(s => {
+    const name = cleanName(s['First Name']) + ' ' + cleanName(s['Surname']);
+    const key = _p17Key(s);
+    const rowId = 'p17-row-' + key.replace(/[^a-z0-9]/g,'_');
+    return `<div id="${rowId}" class="p17-row" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:13px;">
+      <div style="font-weight:700;">${name}</div>
+      <div style="color:var(--ink3);font-size:12px;">Class ${s['Class']||'?'} · Started ${s['Start Date']||'?'} · £280 → £260</div>
+      <div style="margin-top:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="_p17Remove('${key.replace(/'/g,"\\'")}')">Skip this one</button>
+      </div>
+    </div>`;
+  }).join('');
+  ov.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;padding:18px;" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <div style="flex:1;font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:700;">📋 Annual fee refresh — <span id="p17-count">${candidates.length}</span> student${candidates.length>1?'s':''}</div>
+      <button onclick="document.getElementById('p17-review').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);">✕</button>
+    </div>
+    <div style="font-size:12.5px;color:var(--ink3);margin-bottom:12px;">These students joined last year on the new-student rate (£280). A new academic year has started, so they're no longer new — this moves them to the existing-student rate (£260). This does NOT touch any payments already received. Remove anyone below who shouldn't change, then apply the rest.</div>
+    ${rows}
+    <div style="margin-top:14px;text-align:right;">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('p17-review').remove()">Remind me later</button>
+      <button id="p17-apply-btn" class="btn btn-primary btn-sm" onclick="_p17ApplyAll()">✅ Apply to all shown</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  showToast('📋 ' + candidates.length + ' student' + (candidates.length>1?'s':'') + ' ready for the annual fee refresh', 'amber');
+}
+
+const _p17_origRenderDashboard = renderDashboard;
+renderDashboard = function() {
+  _p17_origRenderDashboard.apply(this, arguments);
+  if (typeof db !== 'undefined' && db && db.length) {
+    setTimeout(() => { try { _p17CheckFeeRebalance(); } catch (e) { console.warn('Fee rebalance check failed:', e); } }, 3000);
+  }
+};
+
+console.log('[Phase 17] Annual fee rebalance (New -> Existing rate) active');
+</script>
 </body>
 </html>
