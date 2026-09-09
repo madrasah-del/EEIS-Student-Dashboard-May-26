@@ -10887,6 +10887,7 @@ function _p10NormDate(v) {
   return v; // unrecognised shape — fall back to raw compare rather than silently ignoring it
 }
 const _P10_DATE_FIELDS = { DOB: true, 'Start Date': true };
+window._p10NormDate = _p10NormDate; // referenced from parseStaffRows, outside this IIFE's scope
 
 // Processes one Excel tab's rows (main tab OR G5) against the app db,
 // pushing into a shared diff object. `sheetLabel` is just for logging.

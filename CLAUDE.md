@@ -100,6 +100,20 @@ GITHUB_REPO      = 'https://github.com/madrasah-del/EEIS-Student-Dashboard-May-2
 
 ## Known pitfalls
 
+0. **The IIFE-scope trap**: several script blocks wrap their whole body in
+   `(function(){ ... })();`. A function declared inside one is invisible
+   outside it — `typeof fn === 'function'` from another block silently
+   evaluates `false` forever, it does NOT throw, so a guarded call site
+   just quietly no-ops instead of erroring. This bit `_p10NormDate`
+   specifically: a `_pushFieldsToExcel`/`parseStaffRows` call site guarded
+   it with `typeof _p10NormDate === 'function'` and the guard was always
+   false because the function lives inside the big IIFE around line 10315
+   and was never exported. Fix (and the pattern to follow when adding a
+   new cross-IIFE call): `window._p10NormDate = _p10NormDate;` right after
+   the definition — same fix already applied to `_wlKey` for the same
+   reason. If a `typeof X === 'function'` guard's fallback path is what
+   actually runs in production and nobody notices, this is why — check
+   `window.X` directly, don't trust that "no error" means "it ran."
 1. Never `replaceWith()` an element containing IDs other code
    `getElementById()`s later — hide it and insert a sibling instead.
 2. `||` vs `??` for a value that can legitimately be `0` — `X || fallback`
