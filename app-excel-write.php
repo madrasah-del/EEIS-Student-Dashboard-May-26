@@ -151,8 +151,15 @@ if ($targetRow) {
 if ($g5SheetName) {
   $targetRow = find_row_by_name($base, $g5SheetName, $tokens['access_token'], $payload['firstName'], $payload['surname']);
   if ($targetRow) {
-    // G5 tab has no instalment slots: I=Fees Paid, J=Fees Outstanding,
-    // K=Receipt book Page, L=Method of Payment, M=Date of payment, H=Fees Due.
+    // G5 tab: I=Fees Paid (running total), J=Fees Outstanding, H=Fees Due.
+    // Per-payment receipt/method/date used to live only in K/L/M, a single
+    // slot — a 2nd or 3rd payment silently overwrote the previous one's
+    // receipt number with no error. Slots 2 and 3 (AD-AF, AG-AI) are
+    // APPENDED past the sheet's last real column rather than inserted
+    // next to K/L/M, since this Graph API account doesn't support
+    // structural column insert (see CLAUDE.md) — appending avoids that
+    // limitation entirely, same approach used for the Teachers Day Rate
+    // column.
     $checkUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='H{$targetRow}:I{$targetRow}')";
     list($code, $cdata) = graph_call($checkUrl, $tokens['access_token']);
     $vals = $cdata['values'][0] ?? [0, 0];
@@ -161,10 +168,45 @@ if ($g5SheetName) {
     $newPaid = $alreadyPaid + floatval($payload['amount']);
     $newOutstanding = $feesDue - $newPaid;
 
-    $writeUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='I{$targetRow}:M{$targetRow}')";
+    // Find the first free per-payment slot by checking each slot's
+    // receipt-column for a value, same pattern as the main tab's
+    // date-column check.
+    $slots = [
+      ['receipt' => 'K', 'method' => 'L', 'date' => 'M'],
+      ['receipt' => 'AD', 'method' => 'AE', 'date' => 'AF'],
+      ['receipt' => 'AG', 'method' => 'AH', 'date' => 'AI'],
+    ];
+    $slot = null;
+    foreach ($slots as $s) {
+      $slotCheckUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='{$s['receipt']}{$targetRow}')";
+      list($sc, $sdata) = graph_call($slotCheckUrl, $tokens['access_token']);
+      $val = $sdata['values'][0][0] ?? '';
+      if ($val === '' || $val === null) { $slot = $s; break; }
+    }
+    if (!$slot) fail(409, 'all 3 payment slots are full for this G5 student — needs manual review');
+
+    // Lazily label slot 2/3's header row the first time either is ever
+    // used (slot 1 already has real headers: Receipt book Page/Method of
+    // Payment/Date of payment).
+    if ($slot['receipt'] !== 'K') {
+      $hdrUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='{$slot['receipt']}1:{$slot['date']}1')";
+      list(, $hdata) = graph_call($hdrUrl, $tokens['access_token']);
+      $hasHeader = trim((string)($hdata['values'][0][0] ?? '')) !== '';
+      if (!$hasHeader) {
+        $slotNum = $slot['receipt'] === 'AD' ? '2' : '3';
+        graph_call($hdrUrl, $tokens['access_token'], 'PATCH', ['values' => [[
+          "Receipt book Page ($slotNum)", "Method of Payment ($slotNum)", "Date of payment ($slotNum)"
+        ]]]);
+      }
+    }
+
+    // Always update the running Paid/Outstanding totals (I:J)
+    $totalsUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='I{$targetRow}:J{$targetRow}')";
+    graph_call($totalsUrl, $tokens['access_token'], 'PATCH', ['values' => [[$newPaid, $newOutstanding]]]);
+
+    // Write this payment's own receipt/method/date into its slot
+    $writeUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='{$slot['receipt']}{$targetRow}:{$slot['date']}{$targetRow}')";
     $values = [[
-      $newPaid,
-      $newOutstanding,
       $payload['receipt'] ?? '',
       $payload['method'] ?? '',
       $payload['date'] ?? date('Y-m-d'),
@@ -172,7 +214,7 @@ if ($g5SheetName) {
     list($code, $wdata, $wraw) = graph_call($writeUrl, $tokens['access_token'], 'PATCH', ['values' => $values]);
     if ($code >= 300) fail(502, 'write failed', $wraw);
 
-    echo json_encode(['ok' => true, 'sheet' => $g5SheetName, 'row' => $targetRow, 'slot' => 'I']);
+    echo json_encode(['ok' => true, 'sheet' => $g5SheetName, 'row' => $targetRow, 'slot' => $slot['receipt']]);
     exit;
   }
 }

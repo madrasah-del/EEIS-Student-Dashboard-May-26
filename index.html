@@ -2126,7 +2126,7 @@ input, select, textarea {
   <div class="app-logo"><span>✦</span><span class="logo-full">EEIS Al-Kauthar</span><span class="logo-short">EEIS</span></div>
   <div class="header-right">
     <span class="sync-pill sync-none" id="sync-status">⚪ Not synced</span>
-    <button class="hdr-btn" onclick="loadFromSheets()" title="Reload data from Google Sheets" style="min-height:36px;min-width:36px;">↻</button>
+    <button class="hdr-btn" onclick="typeof refreshEverything==='function'?refreshEverything():loadFromSheets()" title="Refresh — pulls the latest from both Google Sheets and the Excel spreadsheet" style="min-height:36px;min-width:36px;">↻</button>
     <button class="hdr-btn" id="print-btn" onclick="triggerPrint()" title="Print current view" style="min-height:36px;min-width:36px;display:none;">🖨</button>
     <button class="hdr-btn" onclick="openHelp()" title="Help & User Guide" style="min-height:36px;min-width:36px;font-weight:700;">?</button>
     <!-- user avatar -->
@@ -3603,7 +3603,25 @@ function isDirty()  { return !!loadCache(DIRTY_KEY); }
 
 // ── saveDb: ALWAYS writes to Sheets first, localStorage only on success ──
 // Returns a promise. Call with await. Throws if Sheets write fails.
-async function saveDb() {
+// saveDb() calls are serialized through this chain rather than firing
+// independently. Without this, two rapid calls (e.g. deleting several
+// payments in quick succession, each triggering its own saveDb()) race
+// as independent HTTP requests — whichever response arrives LAST wins,
+// even if it was sent FIRST with an older, since-superseded snapshot of
+// `db`. That let a stale intermediate state silently overwrite a later,
+// correct one. Chaining guarantees each save only starts once the
+// previous one has settled, so by the time studentsToRows() is called,
+// it always reflects every mutation made so far — the final save in any
+// burst is always the true final state.
+let _saveDbChain = Promise.resolve();
+
+function saveDb() {
+  const result = _saveDbChain.then(() => _saveDbActual(), () => _saveDbActual());
+  _saveDbChain = result.catch(() => {}); // don't let one failure break the chain for later callers
+  return result;
+}
+
+async function _saveDbActual() {
   if (!cfg.scriptUrl) {
     // No Sheets connection — cannot save
     throw new Error('No Google Sheets connection. Changes cannot be saved.');
@@ -11217,21 +11235,12 @@ async function _pushFieldsToExcel(student, baselineValues, fieldNames) {
 }
 window._pushFieldsToExcel = _pushFieldsToExcel;
 
-// Inject 📥 Excel button next to the Audit button (Editor+)
-function _p8InjectBtn() {
-  if (document.getElementById('p8-xl-btn')) return;
-  const role = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.role : '';
-  if (!role || role === 'Viewer') return;
-  const anchor = document.getElementById('p6-audit-btn');
-  if (!anchor || !anchor.parentElement) return;
-  const b = document.createElement('button');
-  b.id = 'p8-xl-btn';
-  b.className = 'btn btn-ghost btn-sm';
-  b.style.cssText = 'font-size:11px;';
-  b.textContent = '📥 Excel';
-  b.onclick = openExcelImport;
-  anchor.parentElement.insertBefore(b, anchor.nextSibling);
-}
+// Dashboard "📥 Excel" button removed (Sept 2026) — it duplicated the
+// single header ↻ refresh button one-for-one (both ended up calling
+// _p9AutoSync), which was confusing ("why are there two refresh
+// buttons that do different things"). One refresh control now lives in
+// the header only — see refreshEverything() in the Phase 9 block below.
+function _p8InjectBtn() { /* no-op, kept so any stray callers don't error */ }
 const _p8OrigRD = renderDashboard;
 renderDashboard = function() {
   _p8OrigRD.apply(this, arguments);
@@ -11348,25 +11357,28 @@ window.openExcelImport = function() {
 };
 window.openExcelImportManual = _p9OrigOpen;
 
-// Always-visible 🔄 Excel refresh button in the app header (Editor+)
-function _p9InjectHeaderBtn() {
-  if (document.getElementById('p9-refresh-btn')) return;
-  if (typeof currentUser === 'undefined' || !currentUser || !canEdit()) return;
-  const header = document.querySelector('.header-right');
-  if (!header) return;
-  const b = document.createElement('button');
-  b.id = 'p9-refresh-btn';
-  b.className = 'hdr-btn';
-  b.title = 'Refresh from the Excel spreadsheet';
-  b.style.cssText = 'min-height:36px;min-width:36px;background:#e8f5e9;border:1px solid #a5d6a7;';
-  b.textContent = '🔄';
-  b.onclick = function() {
-    b.textContent = '⏳';
+// A second, separate "🔄 Excel" header button used to live here,
+// calling the exact same _p9AutoSync() as the "↻" button next to it —
+// two refresh buttons side by side doing overlapping things, reported
+// as confusing (Sept 2026). Consolidated into the single "↻" button
+// (see refreshEverything(), which now does both jobs); this injector is
+// kept as a no-op so nothing else that referenced it breaks.
+function _p9InjectHeaderBtn() { /* no-op — see refreshEverything() */ }
+
+// The single "↻" header button now does both halves of "refresh": pull
+// the latest from Google Sheets (the app's own database) AND check the
+// live Excel workbook for changes — previously two separate buttons
+// that looked like generic "refresh" icons to a non-technical user but
+// did genuinely different things.
+async function refreshEverything() {
+  showToast('⏳ Refreshing…', 'blue');
+  await loadFromSheets();
+  if (typeof _p9AutoSync === 'function') {
     showToast('📥 Checking the live Excel spreadsheet…', 'blue');
-    _p9AutoSync(true).finally(() => { b.textContent = '🔄'; });
-  };
-  header.insertBefore(b, header.firstChild.nextSibling); // right after the sync pill
+    await _p9AutoSync(true);
+  }
 }
+window.refreshEverything = refreshEverything;
 
 console.log('[Phase 9] Silent Excel auto-sync active (excel-proxy.php)');
 })();
