@@ -124,8 +124,16 @@ foreach ([['AD','AE'], ['AH','AI'], ['AL','AM']] as $pair) {
                  col_range($base, $sheetName, $tokens['access_token'], $pair[1], $mainLastRow)];
 }
 
+// Only sum a row's Fees Due if that row actually has a student name —
+// this tab has at least one stray total/formula cell in column H on a
+// blank row (confirmed: row 109) that would otherwise double-count.
 $totalDue = 0.0;
-foreach ($dueCol as $r) { $v = $r[0] ?? ''; if ($v !== '' && $v !== null) $totalDue += floatval($v); }
+foreach ($dueCol as $i => $r) {
+  $fn = trim($names[$i][0] ?? ''); $sn = trim($names[$i][1] ?? '');
+  if ($fn === '' || $sn === '') continue;
+  $v = $r[0] ?? '';
+  if ($v !== '' && $v !== null) $totalDue += floatval($v);
+}
 
 $payments = [];
 foreach ($names as $i => $nr) {
