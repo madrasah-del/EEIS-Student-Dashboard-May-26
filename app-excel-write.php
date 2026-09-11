@@ -82,8 +82,9 @@ $base = "https://graph.microsoft.com/v1.0/drives/$driveId/items/$itemId/workbook
 
 $payload = json_decode(file_get_contents('php://input'), true);
 $isReset = !empty($payload['reset']);
-if (!$payload || empty($payload['firstName']) || empty($payload['surname']) || (!$isReset && !isset($payload['amount']))) {
-  fail(400, 'body must be {firstName, surname, date, amount, method, receipt} or {firstName, surname, reset: true}');
+$updateMethod = $payload['updateMethod'] ?? null;
+if (!$payload || empty($payload['firstName']) || empty($payload['surname']) || (!$isReset && !$updateMethod && !isset($payload['amount']))) {
+  fail(400, 'body must be {firstName, surname, date, amount, method, receipt}, {firstName, surname, reset: true}, or {firstName, surname, updateMethod: {date, amount, receipt, newMethod}}');
 }
 
 // Find the current live "Student Database X-Y" tab (highest end year)
@@ -128,6 +129,34 @@ if ($targetRow && $isReset) {
   $writeUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='AD{$targetRow}:AO{$targetRow}')";
   graph_call($writeUrl, $tokens['access_token'], 'PATCH', ['values' => [array_fill(0, 12, '')]]);
   echo json_encode(['ok' => true, 'sheet' => $sheetName, 'row' => $targetRow, 'reset' => true]);
+  exit;
+}
+if ($targetRow && $updateMethod) {
+  // Find the exact slot this payment was written into (matched by date +
+  // amount + receipt — the same three facts the app already has) and
+  // PATCH only its Method cell. Used for the bank-transfer confirmation
+  // workflow: a payment is first pushed as "Bank Transfer (UNCONFIRMED)",
+  // then once someone has actually checked the bank statement, the app
+  // calls this to flip that same cell to "Bank Transfer (CONFIRMED)" —
+  // never a new payment, never touches amount/date/receipt.
+  $slotCols = [['AD','AE','AF','AG'], ['AH','AI','AJ','AK'], ['AL','AM','AN','AO']];
+  $matchDate = $updateMethod['date'] ?? '';
+  $matchAmount = floatval($updateMethod['amount'] ?? 0);
+  $matchReceipt = trim((string)($updateMethod['receipt'] ?? ''));
+  $found = null;
+  foreach ($slotCols as $cols) {
+    $checkUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='{$cols[0]}{$targetRow}:{$cols[3]}{$targetRow}')";
+    list(, $cdata) = graph_call($checkUrl, $tokens['access_token']);
+    $row = $cdata['values'][0] ?? ['', '', '', ''];
+    $rowAmount = floatval($row[1] ?? 0);
+    $rowReceipt = trim((string)($row[3] ?? ''));
+    if (abs($rowAmount - $matchAmount) < 0.01 && $rowReceipt === $matchReceipt) { $found = $cols; break; }
+  }
+  if (!$found) fail(404, 'could not find a matching payment slot to update (date/amount/receipt did not match any recorded payment)');
+  $methodUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='{$found[2]}{$targetRow}')";
+  list($mcode, , $mraw) = graph_call($methodUrl, $tokens['access_token'], 'PATCH', ['values' => [[$updateMethod['newMethod'] ?? '']]]);
+  if ($mcode >= 300) fail(502, 'method update failed', $mraw);
+  echo json_encode(['ok' => true, 'sheet' => $sheetName, 'row' => $targetRow, 'slot' => $found[2], 'updated' => true]);
   exit;
 }
 if ($targetRow) {

@@ -676,6 +676,7 @@ td{padding:10px 13px;vertical-align:middle;}
 .toast.show{display:block;animation:slideUp .2s ease;}
 .toast.green{background:var(--green);}
 .toast.red{background:var(--red);}
+.toast.orange{background:var(--gold-dk);}
 
 /* ══════════════════════════════════════════════
    RESPONSIVE HELPERS
@@ -4311,18 +4312,22 @@ function renderFeeTab(s){
       const wasEdited = inst.edited || (inst.editHistory&&inst.editHistory.length);
       const receiptPg = inst.receipt || '—';
       const refNotes  = [inst.ref,inst.notes].filter(Boolean).join(' · ') || '—';
-      return `<tr style="${wasEdited?'background:rgba(250,240,200,.4);':''}">
+      const isUnconfirmedTransfer = inst.method === 'Bank Transfer' && inst.confirmed === false;
+      return `<tr style="${isUnconfirmedTransfer?'background:rgba(138,95,31,.08);':wasEdited?'background:rgba(250,240,200,.4);':''}">
         <td style="color:var(--ink3);font-weight:700">${i+1}</td>
         <td style="font-size:13px;white-space:nowrap">${inst.date||'—'}</td>
         <td style="font-weight:700;font-size:14px">${fmt(inst.amount)}</td>
-        <td><span class="chip" style="background:var(--warm);color:var(--ink);font-size:11px">${inst.method||'—'}</span></td>
+        <td><span class="chip" style="background:var(--warm);color:var(--ink);font-size:11px">${inst.method||'—'}</span>
+          ${isUnconfirmedTransfer?'<span class="chip" style="background:var(--gold-dk);color:#fff;font-size:10px;margin-left:3px;">⏳ Unconfirmed</span>':''}
+        </td>
         <td class="hide-mobile" style="color:var(--blue);font-size:12px;font-weight:600">
           ${receiptPg !== '—' ? '📄 pg '+receiptPg : '<span style="color:var(--ink3)">—</span>'}
           ${wasEdited?'<span style="font-size:9px;color:var(--gold-dk);margin-left:4px;">✏edited</span>':''}
         </td>
         <td class="hide-mobile" style="color:var(--ink3);font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${refNotes}</td>
         <td>
-          ${canEdit()?`<div style="display:flex;gap:3px;">
+          ${canEdit()?`<div style="display:flex;gap:3px;flex-wrap:wrap;">
+            ${isUnconfirmedTransfer?`<button class="del-inst" onclick="confirmBankTransferInst(${i})" title="I have checked the bank statement and this payment is real" style="background:var(--green-lt);color:var(--green);font-size:11px;padding:4px 8px;">✓ Confirm</button>`:''}
             <button class="del-inst" onclick="openInstEdit(${i})" title="Edit payment" style="background:var(--gold-lt);color:var(--gold-dk);font-size:11px;padding:4px 8px;">✏ Edit</button>
             <button class="del-inst" onclick="deleteInstalment(${i})" title="Delete payment">✕</button>
           </div>`:''}
@@ -4341,11 +4346,19 @@ function addInstalment(){
   if(!receipt){ showToast('Receipt Book Page is required','red'); return; }
   const s = db[activeIdx];
   s.instalments = s.instalments||[];
+  // Bank transfers can't be verified at the moment they're recorded — no
+  // card/SumUp confirmation happens automatically like Card/Online does.
+  // Per standing policy: every new bank transfer starts UNCONFIRMED until
+  // someone has physically checked it landed on a real bank statement
+  // (a parent's screenshot is good evidence but not the final check).
+  // Other methods are considered confirmed immediately.
+  const confirmed = method !== 'Bank Transfer';
   s.instalments.push({
     date,
     amount: amt,
     method,
     receipt,
+    confirmed,
     ref:   document.getElementById('inst-ref').value.trim(),
     notes: document.getElementById('inst-notes').value.trim(),
     addedBy:   currentUser?.email || 'admin',
@@ -4360,13 +4373,40 @@ function addInstalment(){
     document.getElementById('inst-ref').value='';
     document.getElementById('inst-notes').value='';
     if(document.getElementById('inst-receipt')) document.getElementById('inst-receipt').value='';
-    showToast('✅ Payment of '+fmt(amt)+' saved — Receipt pg '+receipt,'green');
-    if (typeof _pushPaymentToExcel === 'function') _pushPaymentToExcel(s, {date, amount: amt, method, receipt});
+    showToast(confirmed ? '✅ Payment of '+fmt(amt)+' saved — Receipt pg '+receipt
+      : '⏳ Bank transfer of '+fmt(amt)+' saved as UNCONFIRMED — check the bank statement, then mark it confirmed', confirmed ? 'green' : 'orange');
+    const excelMethod = method === 'Bank Transfer' ? 'Bank Transfer (UNCONFIRMED)' : method;
+    if (typeof _pushPaymentToExcel === 'function') _pushPaymentToExcel(s, {date, amount: amt, method: excelMethod, receipt});
   }).catch(e => {
     // Revert last instalment
     s.instalments.pop();
     renderFeeTab(s); renderDashboard(); renderTable();
     showToast('❌ Payment not saved: '+e.message,'red');
+  });
+}
+
+function confirmBankTransferInst(i){
+  if(!guardEdit())return;
+  const s = db[activeIdx];
+  const inst = s.instalments[i];
+  if(!inst || inst.method !== 'Bank Transfer' || inst.confirmed !== false){ showToast('Nothing to confirm here','red'); return; }
+  if(!confirm('Confirm this bank transfer of '+fmt(inst.amount)+'?\n\nOnly do this once you have physically seen the money land in the account with matching name/reference — a parent\'s screenshot alone is good evidence but not the final check.')) return;
+  inst.confirmed = true;
+  renderFeeTab(s);
+  showToast('💾 Saving confirmation…');
+  saveDb().then(() => {
+    showToast('✅ Bank transfer confirmed','green');
+    fetch('/app-excel-write.php', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        firstName: s['First Name'], surname: s['Surname'],
+        updateMethod: { date: inst.date, amount: inst.amount, receipt: inst.receipt, newMethod: 'Bank Transfer (CONFIRMED)' }
+      })
+    }).catch(()=>{});
+  }).catch(e => {
+    inst.confirmed = false;
+    renderFeeTab(s);
+    showToast('❌ Could not save confirmation: '+e.message,'red');
   });
 }
 
