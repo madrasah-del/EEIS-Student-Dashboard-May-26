@@ -168,6 +168,11 @@ foreach ($payload['fields'] as $fieldName => $fv) {
 
   list($wcode, $wdata, $wraw) = graph_call($cellUrl, $tokens['access_token'], 'PATCH', ['values' => [[$newValue]]]);
   if ($wcode >= 300) { $skipped[$fieldName] = 'write failed'; continue; }
+  if ($fieldName === 'DOB' || $fieldName === 'Start Date') {
+    // Excel defaults a freshly-written date string to US m/d/yyyy display
+    // regardless of the value's actual meaning — force UK dd/mm/yyyy.
+    graph_call($cellUrl, $tokens['access_token'], 'PATCH', ['numberFormat' => [['dd/mm/yyyy']]]);
+  }
   $applied[$fieldName] = $newValue;
 }
 

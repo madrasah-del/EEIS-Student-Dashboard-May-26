@@ -152,6 +152,11 @@ if ($targetRow) {
   ]];
   list($code, $wdata, $wraw) = graph_call($writeUrl, $tokens['access_token'], 'PATCH', ['values' => $values]);
   if ($code >= 300) fail(502, 'write failed', $wraw);
+  // Excel defaults a freshly-written date string to US m/d/yyyy display
+  // regardless of the value's actual meaning — force UK dd/mm/yyyy on the
+  // date cell so payment dates aren't misread by staff.
+  $dateFmtUrl = $base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='{$slot[0]}{$targetRow}')";
+  graph_call($dateFmtUrl, $tokens['access_token'], 'PATCH', ['numberFormat' => [['dd/mm/yyyy']]]);
 
   echo json_encode(['ok' => true, 'sheet' => $sheetName, 'row' => $targetRow, 'slot' => $slot[0]]);
   exit;
@@ -238,6 +243,10 @@ if ($g5SheetName) {
     ]];
     list($code, $wdata, $wraw) = graph_call($writeUrl, $tokens['access_token'], 'PATCH', ['values' => $values]);
     if ($code >= 300) fail(502, 'write failed', $wraw);
+    // Same US-default fix as the main tab above — force UK display on the
+    // date cell of whichever slot was just written.
+    $dateFmtUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/range(address='{$slot['date']}{$targetRow}')";
+    graph_call($dateFmtUrl, $tokens['access_token'], 'PATCH', ['numberFormat' => [['dd/mm/yyyy']]]);
 
     echo json_encode(['ok' => true, 'sheet' => $g5SheetName, 'row' => $targetRow, 'slot' => $slot['receipt']]);
     exit;
