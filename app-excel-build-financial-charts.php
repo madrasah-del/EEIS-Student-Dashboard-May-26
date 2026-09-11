@@ -285,8 +285,8 @@ foreach ($byDate as $d => $amt) {
 }
 
 $aRows = count($tableA); $bRows = count($tableB);
-$aRange = "A5:B" . (4 + $aRows);
-$bRange = "D5:F" . (4 + $bRows);
+$aRange = "A6:B" . (5 + $aRows);
+$bRange = "D6:F" . (5 + $bRows);
 // Table A (individual payments) grows by ~1 row per payment all year, so
 // its clear/write range must be generous — 600 rows covers ~3 payments
 // per student for the whole school. Everything from column H rightwards
@@ -301,22 +301,15 @@ $sideRange = "H4:S120";
 graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$clearRange}')/clear", $tokens['access_token'], 'POST', ['applyTo' => 'All']);
 graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$sideRange}')/clear", $tokens['access_token'], 'POST', ['applyTo' => 'All']);
 
-$labelUrl = $base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='A4:D4')";
-graph_call($labelUrl, $tokens['access_token'], 'PATCH', ['values' => [[
-  'Individual Payments Received', '', '', 'Collections Rising vs Debt Falling (cumulative)'
-]]]);
-
-// --- Append a fresh, live totals snapshot row (row 1-2 stays as the
-// original one-off manual entry; this appends after the last used row of
-// that same table so the three-way reconciliation — this row's Grand
-// Total Paid vs the Student Database tab's own TOTALS row (I109-style) vs
-// the sum of every individual payment above — can be checked at a glance
-// without it going stale like the original 8 Sept row did. ---
-$snapUsedUrl = $base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='A1:A50')";
-list(, $snapData) = graph_call($snapUsedUrl, $tokens['access_token']);
-$snapLastRow = 1;
-foreach (($snapData['values'] ?? []) as $i => $row) { if (trim((string)($row[0] ?? '')) !== '') $snapLastRow = $i + 1; }
-$snapNewRow = max(3, $snapLastRow + 1); // never below row 3, keeps clear of the header/original row
+// --- Live totals snapshot: ALWAYS row 3, overwritten every run — not
+// appended. This runs fire-and-forget on every manual app refresh
+// (refreshEverything()), so an append-per-run would flood the sheet with
+// near-duplicate rows within a single day. Row 2 stays untouched as the
+// original one-off manual entry (8 Sept 2026); row 3 is the one live,
+// always-current row for the three-way reconciliation — this row's Grand
+// Total Paid vs the Student Database tab's own TOTALS row (I109-style)
+// vs the sum of every individual payment in the table below.
+$snapNewRow = 3;
 $grandDue = $totalDueMain + $totalDueG5;
 $grandPaid = $totalPaidMain + $totalPaidG5;
 graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='A{$snapNewRow}:K{$snapNewRow}')", $tokens['access_token'], 'PATCH', ['values' => [[
@@ -326,6 +319,11 @@ graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address
 graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='A{$snapNewRow}')", $tokens['access_token'], 'PATCH', ['numberFormat' => [['dd/mm/yyyy']]]);
 graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='C{$snapNewRow}:I{$snapNewRow}')", $tokens['access_token'], 'PATCH', ['numberFormat' => array_fill(0, 7, ['"£"#,##0.00'])]);
 
+$labelUrl = $base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='A5:D5')";
+graph_call($labelUrl, $tokens['access_token'], 'PATCH', ['values' => [[
+  'Individual Payments Received', '', '', 'Collections Rising vs Debt Falling (cumulative)'
+]]]);
+
 $aUrl = $base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$aRange}')";
 list($ac) = graph_call($aUrl, $tokens['access_token'], 'PATCH', ['values' => $tableA]);
 
@@ -333,9 +331,9 @@ $bUrl = $base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{
 list($bc) = graph_call($bUrl, $tokens['access_token'], 'PATCH', ['values' => $tableB]);
 
 // Formats: currency on amount columns, UK date on the date column.
-$fmtAmountA = "B6:B" . (4 + $aRows);
-$fmtDateB = "D6:D" . (4 + $bRows);
-$fmtAmountB = "E6:F" . (4 + $bRows);
+$fmtAmountA = "B7:B" . (5 + $aRows);
+$fmtDateB = "D7:D" . (5 + $bRows);
+$fmtAmountB = "E7:F" . (5 + $bRows);
 graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$fmtAmountA}')", $tokens['access_token'], 'PATCH', ['numberFormat' => array_fill(0, $aRows - 1, ['"£"#,##0.00'])]);
 graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$fmtDateB}')", $tokens['access_token'], 'PATCH', ['numberFormat' => array_fill(0, $bRows - 1, ['dd/mm/yyyy'])]);
 graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$fmtAmountB}')", $tokens['access_token'], 'PATCH', ['numberFormat' => array_fill(0, $bRows - 1, ['"£"#,##0.00', '"£"#,##0.00'])]);

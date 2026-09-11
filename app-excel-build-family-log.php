@@ -228,9 +228,25 @@ foreach ($groups as $idxs) {
   foreach ($byDate as $date => $entries) {
     $total = array_sum(array_column($entries, 'amount'));
     $who = implode(' + ', array_map(fn($e) => $e['who'] . ' (£' . number_format($e['amount'], 2) . ')', $entries));
-    $note = count($entries) > 1
-      ? '⚠ Same-day payment across ' . count($entries) . ' siblings — confirm with receipt/bank record whether this was one combined transaction'
-      : '';
+    $note = '';
+    if (count($entries) > 1) {
+      $note = '⚠ Same-day payment across ' . count($entries) . ' siblings — confirm with receipt/bank record whether this was one combined transaction';
+    } else {
+      // One child's record shows the whole payment, but the amount is a
+      // clean multiple of the common £130 half-instalment and the family
+      // has that many children — e.g. £260 on one child could really be
+      // £130 each for two siblings, paid together but only entered
+      // against one of them. Flag only — never auto-split, per this
+      // project's "never silently guess" rule; a human confirms via the
+      // family's own outstanding balances or the original payment note.
+      $amt = $entries[0]['amount'];
+      if ($amt > 0 && fmod($amt, 130) < 0.01) {
+        $multiple = round($amt / 130);
+        if ($multiple >= 2 && $multiple <= count($famStudents)) {
+          $note = "⚠ Possible combined payment — £" . number_format($amt, 2) . " is exactly {$multiple} × £130; family has " . count($famStudents) . " children. Check if this should be split £130 each across siblings rather than credited to {$entries[0]['who']} alone.";
+        }
+      }
+    }
     $rows[] = [
       $first ? "Family $familyNum" : '',
       $first ? $childNames : '',
