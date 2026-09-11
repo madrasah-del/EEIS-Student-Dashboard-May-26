@@ -11377,6 +11377,12 @@ async function refreshEverything() {
     showToast('📥 Checking the live Excel spreadsheet…', 'blue');
     await _p9AutoSync(true);
   }
+  // Rebuild the Excel financial charts + family payments log in the
+  // background — these are Graph API-heavy (10-20s) so they run
+  // fire-and-forget rather than blocking the refresh button, and only on
+  // a manual refresh (not the silent auto-sync on page load).
+  fetch('/app-excel-build-financial-charts.php').catch(() => {});
+  fetch('/app-excel-build-family-log.php').catch(() => {});
 }
 window.refreshEverything = refreshEverything;
 

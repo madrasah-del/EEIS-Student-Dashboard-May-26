@@ -88,6 +88,16 @@ GITHUB_REPO      = 'https://github.com/madrasah-del/EEIS-Student-Dashboard-May-2
     field per student — a name-scan + cell read + write, each a Graph API
     round trip): batch in groups of ~4-8 calls per `javascript_exec` to
     stay under the 45s tool timeout, not all at once.
+  - `app-excel-build-financial-charts.php` / `app-excel-build-family-log.php`
+    — public, narrow, idempotent report builders (no admin key needed).
+    First reads real per-payment data straight from the payment-slot
+    columns, writes chart-ready tables + 2 charts onto the "Financial Log"
+    tab (payments received, collections-vs-debt trend). Second groups
+    students into families by shared parent phone/email and flags
+    same-day sibling payments (likely one combined till payment split
+    across children) onto its own "Family Payments Log" tab. Both are
+    fired fire-and-forget from `refreshEverything()` on every manual
+    refresh — slow (10-20s of Graph calls each), so never awaited.
 - **Baked static data in `index.html`, not in Sheets**: `WAITING_LIST_DATA`
   (waiting-list array — editing it means editing this file's source, then
   deploy; enrolled-status overlay lives in `localStorage.eeis_wl_enrolled_v1`),
