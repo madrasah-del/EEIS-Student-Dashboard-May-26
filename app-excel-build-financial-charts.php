@@ -5,12 +5,23 @@
 //      paid and when.
 //   2. "Collections Rising vs Debt Falling" — cumulative collected (rising)
 //      and cumulative outstanding (falling) over time, same date axis.
+// Also appends a fresh live totals snapshot row (for the 3-way
+// reconciliation against the Student Database tab's own TOTALS row — see
+// app-excel-add-reconciliation.php) and a compact "Total Paid by Family"
+// summary for families with 2+ children.
 // Source data is read live from the "Student Database 26-27" and
 // "G5 Class 26-27" tabs' own payment-slot columns (the same ones
 // app-excel-write.php writes into) — never hand-maintained, so re-running
-// this after new payments come in refreshes both tables and charts.
-// Idempotent: clears its own working range and deletes/recreates its own
-// two named charts each run, so it never duplicates data or charts.
+// this after new payments come in refreshes everything.
+// Layout: columns A:F hold the two tables that grow over the year
+// (individual payments, cumulative trend) — unbounded height. Columns
+// H onwards hold FIXED-size content (both charts, then the family
+// summary) that never grows, so the two can never collide — this fixes
+// an earlier bug where the payments table grew tall enough to run under
+// chart 1's fixed position, visually hiding several rows.
+// Idempotent: clears its own working ranges and deletes/recreates its own
+// two named charts each run, so it never duplicates data, charts, or
+// snapshot rows.
 $share = 'https://1drv.ms/x/c/d75baed8553a3b22/IQBn7j_IL-uhSo7ErF2LPDcZAcb8dVYl3JuoXOevABBOPoE';
 $TOKEN_STORE = __DIR__ . '/ms_tokens.json';
 
@@ -118,6 +129,14 @@ $mainLastRow = max(2, intval($mru['rowCount'] ?? 500));
 
 $names = find_row_names($base, $sheetName, $tokens['access_token'], $mainLastRow);
 $dueCol = col_range($base, $sheetName, $tokens['access_token'], 'H', $mainLastRow);
+// Contact columns, only for family grouping (Total Paid by Family summary
+// below) — same normalise-and-union-find approach as
+// app-excel-build-family-log.php's dedicated tab, just a compact total
+// here rather than the full same-day-flagged breakdown.
+$mainFPhone = col_range($base, $sheetName, $tokens['access_token'], 'R', $mainLastRow);
+$mainFEmail = col_range($base, $sheetName, $tokens['access_token'], 'S', $mainLastRow);
+$mainMPhone = col_range($base, $sheetName, $tokens['access_token'], 'U', $mainLastRow);
+$mainMEmail = col_range($base, $sheetName, $tokens['access_token'], 'V', $mainLastRow);
 $slotCols = [];
 foreach ([['AD','AE'], ['AH','AI'], ['AL','AM']] as $pair) {
   $slotCols[] = [col_range($base, $sheetName, $tokens['access_token'], $pair[0], $mainLastRow),
@@ -148,7 +167,49 @@ foreach ($names as $i => $nr) {
   }
 }
 
+foreach ($payments as &$p) { $p['tab'] = 'main'; } unset($p);
+$totalDueMain = $totalDue;
+$totalPaidMain = array_sum(array_column($payments, 'amount'));
+$studentCountMain = count(array_filter($names, fn($nr) => trim($nr[0] ?? '') !== '' && trim($nr[1] ?? '') !== ''));
+
+// Family grouping (main tab only — G5's tiny roll doesn't need this):
+// union-find over shared parent phone/email so a "Total Paid by Family"
+// summary can be shown without guessing from surname alone.
+function norm_contact($v) {
+  $v = trim((string)$v);
+  if ($v === '') return '';
+  $digits = preg_replace('/[^0-9]/', '', $v);
+  if (strlen($digits) >= 9) return 'ph:' . $digits;
+  return 'em:' . strtolower($v);
+}
+$famStudents = [];
+foreach ($names as $i => $nr) {
+  $fn = trim($nr[0] ?? ''); $sn = trim($nr[1] ?? '');
+  if ($fn === '' || $sn === '') continue;
+  $contacts = array_filter([
+    norm_contact($mainFPhone[$i][0] ?? ''), norm_contact($mainFEmail[$i][0] ?? ''),
+    norm_contact($mainMPhone[$i][0] ?? ''), norm_contact($mainMEmail[$i][0] ?? ''),
+  ]);
+  $famStudents[] = ['name' => "$fn $sn", 'contacts' => array_values($contacts)];
+}
+$fparent = [];
+foreach ($famStudents as $i => $s) $fparent[$i] = $i;
+function ffind($parent, $x) { while ($parent[$x] != $x) $x = $parent[$x]; return $x; }
+function funion(&$parent, $a, $b) { $ra = ffind($parent, $a); $rb = ffind($parent, $b); if ($ra != $rb) $parent[$ra] = $rb; }
+$contactOwner = [];
+foreach ($famStudents as $i => $s) {
+  foreach ($s['contacts'] as $c) {
+    if (isset($contactOwner[$c])) funion($fparent, $i, $contactOwner[$c]);
+    else $contactOwner[$c] = $i;
+  }
+}
+$famGroups = [];
+foreach ($famStudents as $i => $s) { $famGroups[ffind($fparent, $i)][] = $famStudents[$i]['name']; }
+// Sum each family's total paid from $payments (matched by student name —
+// filled in once $payments is complete, further down).
+
 // Read G5 tab: names + Fees Due (H) + one filled slot => amount = Fees Paid (I)
+$totalDueG5 = 0.0; $studentCountG5 = 0;
 if ($g5SheetName) {
   $g5UsedUrl = $base . "/worksheets('" . rawurlencode($g5SheetName) . "')/usedRange(valuesOnly=true)?\$select=rowCount";
   list(, $gru) = graph_call($g5UsedUrl, $tokens['access_token']);
@@ -162,14 +223,16 @@ if ($g5SheetName) {
   foreach ($g5Names as $i => $nr) {
     $fn = trim($nr[0] ?? ''); $sn = trim($nr[1] ?? '');
     if ($fn === '' || $sn === '') continue;
-    $due = floatval($g5Due[$i][0] ?? 0); if ($due) $totalDue += $due;
+    $studentCountG5++;
+    $due = floatval($g5Due[$i][0] ?? 0); if ($due) { $totalDue += $due; $totalDueG5 += $due; }
     $dates = array_filter([$g5DateK[$i][0] ?? '', $g5DateAF[$i][0] ?? '', $g5DateAI[$i][0] ?? ''], fn($v) => $v !== '' && $v !== null);
     $paid = floatval($g5Paid[$i][0] ?? 0);
     if (count($dates) === 1 && $paid > 0) {
-      $payments[] = ['date' => reset($dates), 'student' => "$fn $sn", 'amount' => $paid];
+      $payments[] = ['date' => reset($dates), 'student' => "$fn $sn", 'amount' => $paid, 'tab' => 'G5'];
     }
   }
 }
+$totalPaidG5 = array_sum(array_column(array_filter($payments, fn($p) => $p['tab'] === 'G5'), 'amount'));
 
 // Normalise date strings (Graph range API returns dates as serial numbers
 // or ISO strings depending on cell format) into Y-m-d for sorting/display.
@@ -187,6 +250,19 @@ unset($p);
 usort($payments, fn($a, $b) => strcmp($a['date'], $b['date']));
 
 if (empty($payments)) fail(200, 'no real payments recorded yet — nothing to chart');
+
+// Total Paid by Family — only families with 2+ children, sums every
+// payment recorded against any of them, however it was split.
+$paidByStudent = [];
+foreach ($payments as $p) { $paidByStudent[$p['student']] = ($paidByStudent[$p['student']] ?? 0) + $p['amount']; }
+$tableFam = [['Family', 'Children', 'Total Paid']];
+foreach ($famGroups as $childNames) {
+  if (count($childNames) < 2) continue;
+  $total = 0;
+  foreach ($childNames as $cn) { $total += $paidByStudent[$cn] ?? 0; }
+  if ($total <= 0) continue;
+  $tableFam[] = [implode(' + ', $childNames), count($childNames) . ' children', $total];
+}
 
 // Table A: Payment (Student / Date) | Amount
 $tableA = [['Payment (Student / Date)', 'Amount']];
@@ -211,16 +287,44 @@ foreach ($byDate as $d => $amt) {
 $aRows = count($tableA); $bRows = count($tableB);
 $aRange = "A5:B" . (4 + $aRows);
 $bRange = "D5:F" . (4 + $bRows);
-$clearRange = "A4:H60";
+// Table A (individual payments) grows by ~1 row per payment all year, so
+// its clear/write range must be generous — 600 rows covers ~3 payments
+// per student for the whole school. Everything from column H rightwards
+// (charts + family totals) is a FIXED-size area that never grows with
+// payment count, so tables growing tall in A:F can never run into it —
+// this is the fix for the charts hiding rows 17-22 (chart 1 used to start
+// at row 18, right where the payments table had already grown to).
+$clearRange = "A4:F600";
+$sideRange = "H4:S120";
 
 // --- Write the tables onto the Financial Log tab ---
-$clearUrl = $base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$clearRange}')/clear";
-graph_call($clearUrl, $tokens['access_token'], 'POST', ['applyTo' => 'All']);
+graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$clearRange}')/clear", $tokens['access_token'], 'POST', ['applyTo' => 'All']);
+graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$sideRange}')/clear", $tokens['access_token'], 'POST', ['applyTo' => 'All']);
 
 $labelUrl = $base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='A4:D4')";
 graph_call($labelUrl, $tokens['access_token'], 'PATCH', ['values' => [[
   'Individual Payments Received', '', '', 'Collections Rising vs Debt Falling (cumulative)'
 ]]]);
+
+// --- Append a fresh, live totals snapshot row (row 1-2 stays as the
+// original one-off manual entry; this appends after the last used row of
+// that same table so the three-way reconciliation — this row's Grand
+// Total Paid vs the Student Database tab's own TOTALS row (I109-style) vs
+// the sum of every individual payment above — can be checked at a glance
+// without it going stale like the original 8 Sept row did. ---
+$snapUsedUrl = $base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='A1:A50')";
+list(, $snapData) = graph_call($snapUsedUrl, $tokens['access_token']);
+$snapLastRow = 1;
+foreach (($snapData['values'] ?? []) as $i => $row) { if (trim((string)($row[0] ?? '')) !== '') $snapLastRow = $i + 1; }
+$snapNewRow = max(3, $snapLastRow + 1); // never below row 3, keeps clear of the header/original row
+$grandDue = $totalDueMain + $totalDueG5;
+$grandPaid = $totalPaidMain + $totalPaidG5;
+graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='A{$snapNewRow}:K{$snapNewRow}')", $tokens['access_token'], 'PATCH', ['values' => [[
+  date('Y-m-d'), 'Kauthar (auto, live)', $totalDueMain, $totalPaidMain, $totalDueG5, $totalPaidG5,
+  $grandDue, $grandPaid, $grandDue - $grandPaid, null, $studentCountMain + $studentCountG5,
+]]]);
+graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='A{$snapNewRow}')", $tokens['access_token'], 'PATCH', ['numberFormat' => [['dd/mm/yyyy']]]);
+graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='C{$snapNewRow}:I{$snapNewRow}')", $tokens['access_token'], 'PATCH', ['numberFormat' => array_fill(0, 7, ['"£"#,##0.00'])]);
 
 $aUrl = $base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$aRange}')";
 list($ac) = graph_call($aUrl, $tokens['access_token'], 'PATCH', ['values' => $tableA]);
@@ -236,6 +340,16 @@ graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address
 graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$fmtDateB}')", $tokens['access_token'], 'PATCH', ['numberFormat' => array_fill(0, $bRows - 1, ['dd/mm/yyyy'])]);
 graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$fmtAmountB}')", $tokens['access_token'], 'PATCH', ['numberFormat' => array_fill(0, $bRows - 1, ['"£"#,##0.00', '"£"#,##0.00'])]);
 
+// --- Family Totals summary, in the fixed side area (never collides with
+// the growing payments/cumulative tables in A:F) ---
+if (count($tableFam) > 1) {
+  $famRows = count($tableFam);
+  $famRange = "H90:J" . (89 + $famRows);
+  graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='H89')", $tokens['access_token'], 'PATCH', ['values' => [['Total Paid by Family (2+ children)']]]);
+  graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='{$famRange}')", $tokens['access_token'], 'PATCH', ['values' => $tableFam]);
+  graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/range(address='J91:J" . (89 + $famRows) . "')", $tokens['access_token'], 'PATCH', ['numberFormat' => array_fill(0, $famRows - 1, ['"£"#,##0.00'])]);
+}
+
 // --- Charts: delete any existing ones with our names, then recreate ---
 list(, $chartsData) = graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts", $tokens['access_token']);
 foreach (($chartsData['value'] ?? []) as $ch) {
@@ -244,7 +358,11 @@ foreach (($chartsData['value'] ?? []) as $ch) {
   }
 }
 
-$result = ['ok' => true, 'sheet' => $finSheet, 'payments_charted' => count($payments), 'total_due' => $totalDue];
+$result = [
+  'ok' => true, 'sheet' => $finSheet, 'payments_charted' => count($payments), 'total_due' => $totalDue,
+  'total_paid' => $totalPaidMain + $totalPaidG5, 'snapshot_row' => $snapNewRow,
+  'families_summarised' => count($tableFam) - 1,
+];
 
 // Chart 1: column chart of individual payments
 list($c1code, $c1data, $c1raw) = graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts/add", $tokens['access_token'], 'POST', [
@@ -257,7 +375,7 @@ if ($c1code < 300 && !empty($c1data['name'])) {
   graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts('" . rawurlencode($c1name) . "')", $tokens['access_token'], 'PATCH', ['name' => 'PaymentsReceivedChart']);
   graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts('PaymentsReceivedChart')/title", $tokens['access_token'], 'PATCH', ['text' => 'Payments Received (who paid, and when)', 'visible' => true]);
   graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts('PaymentsReceivedChart')/legend", $tokens['access_token'], 'PATCH', ['visible' => false]);
-  graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts('PaymentsReceivedChart')/setPosition", $tokens['access_token'], 'POST', ['startCell' => 'A18', 'endCell' => 'H33']);
+  graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts('PaymentsReceivedChart')/setPosition", $tokens['access_token'], 'POST', ['startCell' => 'H4', 'endCell' => 'S19']);
   $result['chart1'] = 'ok';
 } else {
   $result['chart1'] = 'failed: ' . $c1raw;
@@ -274,7 +392,7 @@ if ($c2code < 300 && !empty($c2data['name'])) {
   graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts('" . rawurlencode($c2name) . "')", $tokens['access_token'], 'PATCH', ['name' => 'CollectionsTrendChart']);
   graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts('CollectionsTrendChart')/title", $tokens['access_token'], 'PATCH', ['text' => 'Collections Rising vs Debt Falling', 'visible' => true]);
   graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts('CollectionsTrendChart')/legend", $tokens['access_token'], 'PATCH', ['visible' => true]);
-  graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts('CollectionsTrendChart')/setPosition", $tokens['access_token'], 'POST', ['startCell' => 'A35', 'endCell' => 'H50']);
+  graph_call($base . "/worksheets('" . rawurlencode($finSheet) . "')/charts('CollectionsTrendChart')/setPosition", $tokens['access_token'], 'POST', ['startCell' => 'H21', 'endCell' => 'S36']);
   $result['chart2'] = 'ok';
 } else {
   $result['chart2'] = 'failed: ' . $c2raw;
