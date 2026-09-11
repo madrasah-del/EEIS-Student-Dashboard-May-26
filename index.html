@@ -10713,7 +10713,18 @@ _wlSyncFromSheets = async function() {
     }
 
     if (maxTs) localStorage.setItem(_WL_CUTOFF_KEY, maxTs);
-    localStorage.setItem(_WL_SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), count: dataRows.length, fresh: freshEntries.length }));
+    // Store the actual fresh entries, not just a count — `_wlGetLive()`
+    // returns the WHOLE unreviewed live backlog (everything since
+    // _WL_BASE_CUTOFF), not this run's delta, which cost the automated
+    // daily sync task a wasted detour (it had to reverse-engineer the
+    // delta from before/after dashboard counts). This is the one place
+    // that actually knows which entries this specific sync just added —
+    // read `JSON.parse(localStorage.getItem(_WL_SYNC_KEY)).freshEntries`
+    // for "what's new this run," never `_wlGetLive()`.
+    localStorage.setItem(_WL_SYNC_KEY, JSON.stringify({
+      time: new Date().toISOString(), count: dataRows.length, fresh: freshEntries.length,
+      freshEntries: freshEntries.map(e => ({ Firstname: e.Firstname, Surname: e.Surname, DOB: e.DOB, Gender: e.Gender, bracket: e.bracket, DateSubmitted: e.DateSubmitted, calculatedAge: e.calculatedAge, Mother: e.Mother, Father: e.Father }))
+    }));
     if (freshEntries.length) {
       showToast('✨ ' + freshEntries.length + ' new applicants added to the waiting list', 'green');
       _wlShowNewApplicants(freshEntries);
@@ -10721,6 +10732,7 @@ _wlSyncFromSheets = async function() {
       showToast('✅ No new applicants since last sync', 'green');
     }
     console.log('[WL Sync] new:', freshEntries.length, '· already known:', skippedKnown, '· invalid rows:', skippedInvalid, '· before last sync:', skippedOld);
+    return freshEntries;
   } catch(e) {
     showToast('❌ Sync failed: ' + e.message, 'red');
   } finally {
