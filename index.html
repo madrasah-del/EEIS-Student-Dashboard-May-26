@@ -4445,7 +4445,7 @@ function saveEdit(){
   const s=db[activeIdx];
   // Snapshot the fields we sync to Excel BEFORE they're overwritten, so a
   // conflict (Excel changed the same field more recently) can be detected.
-  const _p10SyncFields = ['DOB','Gender','Fees Due','Start Date','Mother Name','Mother Phone','Mother Email','Father Name','Father Phone','Father Email','Road','Town','County','Postcode','Allergies','Comments'];
+  const _p10SyncFields = ['Class','DOB','Gender','Fees Due','Start Date','Mother Name','Mother Phone','Mother Email','Father Name','Father Phone','Father Email','Road','Town','County','Postcode','Allergies','Comments'];
   const _p10Baseline = {};
   _p10SyncFields.forEach(f => { _p10Baseline[f] = s[f]; });
   Object.assign(s,{ 'First Name':fn,'Surname':sn,'DOB':document.getElementById('e-dob').value,'Gender':document.getElementById('e-gender').value,'Class':document.getElementById('e-class').value,'Start Date':document.getElementById('e-start').value,'Fees Due':parseFloat(document.getElementById('e-due').value)||0,'Fee Notes':document.getElementById('e-feenote').value,'Mother Name':document.getElementById('e-mname').value,'Mother Phone':document.getElementById('e-mphone').value,'Mother Email':document.getElementById('e-memail').value,'Father Name':document.getElementById('e-fname2').value,'Father Phone':document.getElementById('e-fphone').value,'Father Email':document.getElementById('e-femail').value,'Road':document.getElementById('e-road').value,'Town':document.getElementById('e-town').value,'County':document.getElementById('e-county').value,'Postcode':document.getElementById('e-post').value,'Allergies':document.getElementById('e-allergy').value,'Comments':document.getElementById('e-comments').value });
