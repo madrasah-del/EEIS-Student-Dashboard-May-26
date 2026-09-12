@@ -10380,6 +10380,30 @@ madrasah@eeis.co.uk`;
     showToast(`✅ ${fn} ${sn} enrolled in Class ${cls}!`, 'green');
     if (typeof renderWaitlist === 'function') renderWaitlist();
     if (typeof renderDashboard === 'function') renderDashboard();
+    // Also create the new row on the Excel side — this used to be
+    // missing entirely, so an enrolment only ever half-happened (app
+    // database only, Excel never got the new student at all).
+    fetch('/app-excel-add-student.php', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        firstName: fn, surname: sn, dob, age, gender: g('p7e-gender'), class: cls,
+        startDate: g('p7e-start'), feesDue: feeDue,
+        motherName: g('p7e-mname'), motherPhone: g('p7e-mphone'), motherEmail: g('p7e-memail'),
+        fatherName: g('p7e-fname'), fatherPhone: g('p7e-fphone'), fatherEmail: g('p7e-femail'),
+        road: g('p7e-road'), town: g('p7e-town'), county: g('p7e-county'), postcode: g('p7e-post'),
+        allergies: g('p7e-allergy'),
+      })
+    }).then(r => r.json()).then(data => {
+      if (!data.ok) {
+        console.warn('[App->Excel] enrolment push failed:', data.error, data.detail);
+        showToast('⚠️ Enrolled in the app, but Excel push failed — add ' + fn + ' ' + sn + ' to Excel manually', 'red');
+      } else {
+        console.log('[App->Excel] new student added to', data.sheet, 'row', data.student_row);
+      }
+    }).catch(e => {
+      console.warn('[App->Excel] enrolment push error:', e.message);
+      showToast('⚠️ Enrolled in the app, but Excel push failed — add ' + fn + ' ' + sn + ' to Excel manually', 'red');
+    });
   };
 
   // Patch renderWaitlist to inject Enrol buttons + enrolled badges
