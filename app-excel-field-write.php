@@ -89,21 +89,24 @@ if (!$payload || empty($payload['firstName']) || empty($payload['surname']) || e
   fail(400, 'body must be {firstName, surname, fields: {FieldName: {baseline, value}, ...}}');
 }
 
-// Column letter for each syncable field, per sheet type. Class and Fees
-// Paid are deliberately excluded — Class changes usually mean moving a
-// student between tabs (main <-> G5), which this endpoint does not
-// attempt, and Fees Paid is only ever changed via payments (see
-// app-excel-write.php), never as a plain field overwrite.
+// Column letter for each syncable field, per sheet type. Fees Paid is
+// excluded — only ever changed via payments (see app-excel-write.php),
+// never as a plain field overwrite. Class IS syncable for a same-tab
+// relabel (e.g. B1 -> B3), but a value of "G5" (or the student already
+// being on the G5 tab) means an actual tab move, which this endpoint
+// does not attempt — guarded explicitly in the write loop below rather
+// than excluded outright, so ordinary class corrections don't need a
+// one-off script every time.
 $COLS = array(
   'main' => array(
-    'DOB' => 'D', 'Gender' => 'F', 'Fees Due' => 'H', 'Start Date' => 'O',
+    'Class' => 'G', 'DOB' => 'D', 'Gender' => 'F', 'Fees Due' => 'H', 'Start Date' => 'O',
     'Father Name' => 'Q', 'Father Phone' => 'R', 'Father Email' => 'S',
     'Mother Name' => 'T', 'Mother Phone' => 'U', 'Mother Email' => 'V',
     'Road' => 'X', 'Town' => 'Y', 'County' => 'Z', 'Postcode' => 'AA',
     'Allergies' => 'AB', 'Comments' => 'AC',
   ),
   'g5' => array(
-    'DOB' => 'D', 'Gender' => 'F', 'Fees Due' => 'H', 'Start Date' => 'N',
+    'Class' => 'G', 'DOB' => 'D', 'Gender' => 'F', 'Fees Due' => 'H', 'Start Date' => 'N',
     'Father Name' => 'P', 'Father Phone' => 'Q', 'Father Email' => 'R',
     'Mother Name' => 'S', 'Mother Phone' => 'T', 'Mother Email' => 'U',
     'Road' => 'W', 'Town' => 'X', 'County' => 'Y', 'Postcode' => 'Z',
@@ -154,6 +157,15 @@ foreach ($payload['fields'] as $fieldName => $fv) {
   $col = $colMap[$fieldName];
   $baseline = isset($fv['baseline']) ? trim((string)$fv['baseline']) : '';
   $newValue = isset($fv['value']) ? $fv['value'] : '';
+
+  if ($fieldName === 'Class' && (strtoupper(trim((string)$newValue)) === 'G5' || $targetSheet === $g5SheetName)) {
+    // A same-tab relabel (e.g. B1 -> B3) is safe and handled below like
+    // any other field; an actual G5 <-> main tab move is not — that
+    // needs the row physically moved between sheets, which this endpoint
+    // was never built to do.
+    $skipped[$fieldName] = 'Class change involves the G5 tab (a real tab move) — not attempted here, needs manual handling';
+    continue;
+  }
 
   $cellUrl = $base . "/worksheets('" . rawurlencode($targetSheet) . "')/range(address='{$col}{$targetRow}')";
   list($ccode, $cdata) = graph_call($cellUrl, $tokens['access_token']);
