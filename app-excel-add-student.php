@@ -147,8 +147,12 @@ if ($wc >= 300) fail(502, 'student row write failed', $wraw);
 
 // Explicitly blank the payment-slot + reconciliation columns for this row
 // (they belonged to the old TOTALS row a moment ago) and format the new
-// due/date cells.
-graph_call($base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='AD{$newStudentRow}:AQ{$newStudentRow}')", $tokens['access_token'], 'PATCH', ['values' => [array_fill(0, 30, '')]]);
+// due/date cells. AD:AQ is 14 columns (AD..AQ) — a mismatched array size
+// here silently failed the clear once already (30 values into a 14-wide
+// range), leaving the old TOTALS formulas sitting on a real student's
+// row and making the new totals row double-count everything.
+list($clrCode, , $clrRaw) = graph_call($base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='AD{$newStudentRow}:AQ{$newStudentRow}')", $tokens['access_token'], 'PATCH', ['values' => [array_fill(0, 14, '')]]);
+if ($clrCode >= 300) fail(502, 'failed to clear payment-slot columns on the new student row — aborting before writing TOTALS to avoid a double-count', $clrRaw);
 graph_call($base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='D{$newStudentRow}')", $tokens['access_token'], 'PATCH', ['numberFormat' => [['dd/mm/yyyy']]]);
 graph_call($base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='O{$newStudentRow}')", $tokens['access_token'], 'PATCH', ['numberFormat' => [['dd/mm/yyyy']]]);
 graph_call($base . "/worksheets('" . rawurlencode($sheetName) . "')/range(address='H{$newStudentRow}:J{$newStudentRow}')", $tokens['access_token'], 'PATCH', ['numberFormat' => array_fill(0, 3, ['"£"#,##0.00'])]);
