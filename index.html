@@ -10309,15 +10309,15 @@ madrasah@eeis.co.uk`;
           </div>
           <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;padding:8px 0 5px;border-top:1px solid var(--border);">Mother</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-            ${fld('p7e-mname','Name','text',c['Mother Name']||c.MotherName,false)}
-            ${fld('p7e-mphone','Phone','tel',c['Mother Phone']||c.MotherPhone,true,'07xxx xxx xxx')}
-            ${fld('p7e-memail','Email','email',c['Mother Email']||c.MotherEmail,true,'email@example.com')}
+            ${fld('p7e-mname','Name','text',c['Mother Name']||c.MotherName||(c.Mother&&c.Mother.Name),false)}
+            ${fld('p7e-mphone','Phone','tel',c['Mother Phone']||c.MotherPhone||(c.Mother&&c.Mother.Phone),true,'07xxx xxx xxx')}
+            ${fld('p7e-memail','Email','email',c['Mother Email']||c.MotherEmail||(c.Mother&&c.Mother.Email),true,'email@example.com')}
           </div>
           <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;padding:8px 0 5px;border-top:1px solid var(--border);">Father</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-            ${fld('p7e-fname','Name','text',c['Father Name']||c.FatherName,false)}
-            ${fld('p7e-fphone','Phone','tel',c['Father Phone']||c.FatherPhone,false,'07xxx xxx xxx')}
-            ${fld('p7e-femail','Email','email',c['Father Email']||c.FatherEmail,false,'email@example.com')}
+            ${fld('p7e-fname','Name','text',c['Father Name']||c.FatherName||(c.Father&&c.Father.Name),false)}
+            ${fld('p7e-fphone','Phone','tel',c['Father Phone']||c.FatherPhone||(c.Father&&c.Father.Phone),false,'07xxx xxx xxx')}
+            ${fld('p7e-femail','Email','email',c['Father Email']||c.FatherEmail||(c.Father&&c.Father.Email),false,'email@example.com')}
           </div>
           <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;padding:8px 0 5px;border-top:1px solid var(--border);">Address</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
